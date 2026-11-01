@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz-tavle</title>
+<meta name="description" content="Tilpasselig quiz-tavle i Jeopardy-stil med kategorier, point, hold, nedtælling og lyd.">
+<style>
+:root{
+  --page-bg:#000; --page-text:#fff; --board-gap:#000;
+  --tile-bg:#060ce9; --tile-bg2:#0410a8; --value:#ffcc00;
+  --cat-bg:#060ce9; --cat-text:#fff;
+  --q-bg:#060ce9; --q-text:#fff; --a-text:#ffcc00;
+  --heading-font:'Anton', Impact, 'Arial Black', sans-serif;
+  --body-font:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius:6px; --bg-image:none; --case:uppercase;
+  --ui-bg:#ffffff; --ui-text:#1b1d24; --ui-muted:#626775; --ui-line:#dfe2ea; --ui-accent:#2448d8; --ui-soft:#f3f5fa;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--page-bg) var(--bg-image) center/cover no-repeat fixed;
+  color:var(--page-text); font-family:var(--body-font);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+button{font:inherit;cursor:pointer}
+[hidden]{display:none!important}
+
+/* ---------- Top ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand img{max-height:48px;max-width:120px;object-fit:contain}
+.brand h1{margin:0;font-family:var(--heading-font);font-weight:400;letter-spacing:.03em;text-transform:var(--case);font-size:clamp(1.2rem,2.6vw,2.2rem);line-height:1.05}
+.brand p{margin:2px 0 0;opacity:.8;font-size:.9rem}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tbtn{background:rgba(255,255,255,.12);color:inherit;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 12px;font-size:.9rem;backdrop-filter:blur(4px)}
+.tbtn:hover{background:rgba(255,255,255,.22)}
+.tbtn.primary{background:var(--value);color:#111;border-color:transparent;font-weight:600}
+
+/* ---------- Board ---------- */
+main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
+.board{height:100%;display:grid;gap:clamp(3px,.5vw,8px);background:var(--board-gap);padding:clamp(3px,.5vw,8px);border-radius:calc(var(--radius) + 4px)}
+.cell{border:none;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;min-height:0;min-width:0;overflow:hidden}
+.cat{background:var(--cat-bg);color:var(--cat-text);font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.7rem,1.6vw,1.5rem);line-height:1.1;letter-spacing:.02em;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);word-break:break-word}
+.tile{background:linear-gradient(160deg,var(--tile-bg),var(--tile-bg2));color:var(--value);font-family:var(--heading-font);font-size:clamp(1rem,3.4vw,3.2rem);text-shadow:2px 3px 0 rgba(0,0,0,.45);transition:transform .12s, filter .12s}
+.tile:hover:not(.used){transform:scale(1.03);filter:brightness(1.18)}
+.tile.used{cursor:default;color:transparent;text-shadow:none;filter:saturate(.6) brightness(.75)}
+.tile.empty{cursor:default;opacity:.35}
+.board.filling .tile{animation:pop .35s both}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+
+/* ---------- Scores ---------- */
+.scoreboard{flex:0 0 auto;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:0 16px 14px}
+.team{min-width:130px;background:rgba(0,0,0,.35);border:2px solid var(--tcol,#fff);border-radius:10px;padding:6px 12px;text-align:center}
+.team .tn{font-size:.85rem;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.team .ts{font-family:var(--heading-font);font-size:clamp(1.2rem,2.2vw,2rem);color:var(--value);background:none;border:none;padding:0;line-height:1.1}
+.team .ts.neg{color:#ff6b6b}
+.team .adj{display:flex;gap:4px;justify-content:center;margin-top:2px}
+.team .adj button{background:rgba(255,255,255,.12);border:none;color:inherit;border-radius:5px;padding:0 8px;font-size:.8rem}
+
+/* ---------- Splash ---------- */
+.splash{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:16px;background:var(--page-bg) var(--bg-image) center/cover no-repeat}
+.splash h2{font-family:var(--heading-font);font-weight:400;text-transform:var(--case);font-size:clamp(2.2rem,8vw,6rem);margin:0;color:var(--value);text-shadow:4px 5px 0 rgba(0,0,0,.45);line-height:1}
+.splash p{margin:0;font-size:clamp(1rem,2vw,1.4rem);opacity:.85}
+.splash img{max-height:22vh;max-width:60vw}
+.bigbtn{background:var(--value);color:#111;border:none;border-radius:999px;padding:14px 34px;font-size:1.2rem;font-weight:700;box-shadow:0 6px 0 rgba(0,0,0,.35)}
+.bigbtn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+
+/* ---------- Question ---------- */
+.overlay{position:fixed;inset:0;z-index:30;display:flex;padding:clamp(8px,2vw,24px);background:rgba(0,0,0,.6)}
+.qcard{flex:1;display:flex;flex-direction:column;background:linear-gradient(160deg,var(--q-bg),var(--tile-bg2));color:var(--q-text);border-radius:calc(var(--radius) + 6px);padding:clamp(14px,2.5vw,32px);box-shadow:0 20px 60px rgba(0,0,0,.5);animation:zoom .38s cubic-bezier(.2,.9,.3,1.2) both;transform-origin:var(--ox,50%) var(--oy,50%);min-height:0;overflow:auto}
+@keyframes zoom{from{transform:scale(.08);opacity:.4}to{transform:none;opacity:1}}
+.qmeta{display:flex;justify-content:space-between;gap:10px;font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.9rem,1.6vw,1.4rem);opacity:.9}
+.qmeta .v{color:var(--value)}
+.qbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vh,24px);text-align:center;padding:12px 0;min-height:0}
+.qtext{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(1.5rem,4.4vw,4.2rem);line-height:1.12;white-space:pre-line;text-shadow:3px 4px 0 rgba(0,0,0,.4);max-width:1400px;overflow-wrap:anywhere}
+.qimg{max-width:min(90%,800px);max-height:36vh;border-radius:var(--radius);object-fit:contain}
+.atext{font-family:var(--heading-font);text-transform:var(--case);color:var(--a-text);font-size:clamp(1.3rem,3.6vw,3.4rem);line-height:1.12;white-space:pre-line;text-shadow:3px 4px 0 rgba(0,0,0,.4);animation:pop .3s both;overflow-wrap:anywhere}
+.atext small{display:block;font-size:.45em;opacity:.8;color:var(--q-text);margin-bottom:.3em}
+.dd{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(2.4rem,9vw,8rem);color:var(--value);text-shadow:5px 6px 0 rgba(0,0,0,.45);animation:spin .9s cubic-bezier(.2,.9,.3,1.1) both;line-height:1}
+@keyframes spin{from{transform:rotate(-540deg) scale(.1)}to{transform:none}}
+.wager{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;font-size:1.1rem}
+.wager input,.wager select{font:inherit;padding:8px 10px;border-radius:8px;border:none;max-width:200px}
+.timer{display:flex;align-items:center;gap:12px;margin:6px 0 10px}
+.tbar{flex:1;height:12px;background:rgba(0,0,0,.35);border-radius:99px;overflow:hidden}
+.tbar i{display:block;height:100%;width:100%;background:var(--value);transform-origin:left;border-radius:99px}
+.tnum{font-family:var(--heading-font);font-size:1.6rem;min-width:2.2em;text-align:right;color:var(--value)}
+.qcontrols{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.qcontrols .tbtn{font-size:1rem;padding:9px 16px}
+.award{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.award .who{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.28);border-radius:10px;padding:6px 8px 6px 12px;border-left:5px solid var(--tcol,#fff)}
+.award .who span{font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.award button{border:none;border-radius:7px;padding:6px 12px;font-weight:700;background:rgba(255,255,255,.15);color:inherit}
+.award button.ok.on{background:#20b26b;color:#fff}
+.award button.no.on{background:#e04848;color:#fff}
+.hint{font-size:.8rem;opacity:.65;text-align:center;margin-top:10px}
+
+/* ---------- Editor (light UI, independent of theme) ---------- */
+.editor{position:fixed;inset:0;z-index:50;display:flex;justify-content:flex-end;background:rgba(0,0,0,.45)}
+.panel{width:min(980px,100%);height:100%;background:var(--ui-bg);color:var(--ui-text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(0,0,0,.35)}
+.phead{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--ui-line);gap:10px}
+.phead h2{margin:0;font-size:1.2rem}
+.tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--ui-line);overflow-x:auto}
+.tabs button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 12px 9px;color:var(--ui-muted);font-weight:600;white-space:nowrap}
+.tabs button.on{color:var(--ui-accent);border-color:var(--ui-accent)}
+.pbody{flex:1;overflow:auto;padding:18px 20px 40px}
+.pbody h3{font-size:1rem;margin:22px 0 8px}
+.pbody h3:first-child{margin-top:0}
+.pbody p.note{color:var(--ui-muted);font-size:.88rem;margin:4px 0 12px;line-height:1.45}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--ui-muted);flex:1 1 180px;min-width:0}
+.fld.sm{flex:0 0 110px}
+.fld input[type=text],.fld input[type=number],.fld input[type=url],.fld textarea,.fld select{font:inherit;font-size:.92rem;color:var(--ui-text);background:#fff;border:1px solid var(--ui-line);border-radius:7px;padding:7px 9px;width:100%}
+.fld textarea{resize:vertical;min-height:58px}
+.fld input[type=color]{width:100%;height:36px;border:1px solid var(--ui-line);border-radius:7px;padding:2px;background:#fff}
+.chk{display:flex;align-items:center;gap:7px;font-size:.9rem;color:var(--ui-text)}
+.btn{background:var(--ui-soft);color:var(--ui-text);border:1px solid var(--ui-line);border-radius:8px;padding:7px 12px;font-size:.88rem}
+.btn:hover{border-color:#b9bfcd}
+.btn.acc{background:var(--ui-accent);color:#fff;border-color:var(--ui-accent)}
+.btn.danger{color:#b42323}
+.btn.sm{padding:3px 8px;font-size:.8rem}
+details.catcard{border:1px solid var(--ui-line);border-radius:10px;margin-bottom:10px;background:#fff}
+details.catcard>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;font-weight:600}
+details.catcard>summary::-webkit-details-marker{display:none}
+details.catcard>summary::before{content:'▸';color:var(--ui-muted);transition:transform .15s}
+details.catcard[open]>summary::before{transform:rotate(90deg)}
+details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catinner{padding:4px 12px 12px;border-top:1px solid var(--ui-line)}
+.qrow{display:grid;grid-template-columns:80px 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px dashed var(--ui-line)}
+.qrow:last-child{border-bottom:none}
+.qrow .extra{grid-column:2 / 4;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.qrow .extra .fld{flex:1 1 220px}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.preset{border:1px solid var(--ui-line);border-radius:10px;padding:0;overflow:hidden;background:#fff;text-align:left}
+.preset .sw{height:46px;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px}
+.preset .sw i{border-radius:3px;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:.75rem}
+.preset b{display:block;padding:6px 8px;font-size:.82rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.sndrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--ui-line)}
+.sndrow .nm{font-weight:600}
+.sndrow .st{font-size:.8rem;color:var(--ui-muted)}
+.sndrow .bt{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.teamrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.teamrow input[type=text]{flex:1;font:inherit;border:1px solid var(--ui-line);border-radius:7px;padding:7px 9px;min-width:0}
+.teamrow input[type=color]{width:42px;height:36px;border:1px solid var(--ui-line);border-radius:7px;padding:2px}
+.callout{background:#fff8e1;border:1px solid #f1d98a;border-radius:9px;padding:10px 12px;font-size:.88rem;line-height:1.45;color:#5b4a12;margin-bottom:14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1b1d24;color:#fff;padding:10px 16px;border-radius:9px;z-index:60;font-size:.9rem;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+
+@media (max-width:640px){
+  .qrow{grid-template-columns:1fr}
+  .qrow .extra{grid-column:auto}
+  .topbar{flex-wrap:wrap}
+  .tbtn{padding:6px 9px;font-size:.82rem}
+  main{padding:0 6px 8px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img id="logo" alt="" hidden>
+    <div><h1 id="gameTitle"></h1><p id="gameSubtitle"></p></div>
+  </div>
+  <div class="actions">
+    <button class="tbtn" id="btnSound" title="Lyd til/fra">🔊</button>
+    <button class="tbtn" id="btnFull" title="Fuld skærm">⛶</button>
+    <button class="tbtn" id="btnNew" title="Nulstil point og tavle">↺ Nyt spil</button>
+    <button class="tbtn primary" id="btnEdit">✎ Tilpas</button>
+  </div>
+</header>
+
+<main><div id="board" class="board"></div></main>
+<footer id="scoreboard" class="scoreboard"></footer>
+
+<div id="splash" class="splash">
+  <img id="splashLogo" alt="" hidden>
+  <h2 id="splashTitle"></h2>
+  <p id="splashSub"></p>
+  <button class="bigbtn" id="btnStart">▶ Start spillet</button>
+</div>
+
+<div id="qOverlay" class="overlay" hidden>
+  <div class="qcard" id="qCard">
+    <div class="qmeta"><span id="qCat"></span><span class="v" id="qVal"></span></div>
+    <div class="qbody" id="qBody"></div>
+    <div class="timer" id="timerWrap"><div class="tbar"><i id="tFill"></i></div><span class="tnum" id="tNum"></span></div>
+    <div class="qcontrols" id="qControls">
+      <button class="tbtn" id="btnTimer">⏱ Start nedtælling</button>
+      <button class="tbtn primary" id="btnReveal">Vis svar</button>
+      <button class="tbtn" id="btnClose">Tilbage til tavlen</button>
+    </div>
+    <div class="award" id="award"></div>
+    <div class="hint">Mellemrum: vis svar · T: nedtælling · Esc: tilbage til tavlen</div>
+  </div>
+</div>
+
+<div id="editor" class="editor" hidden>
+  <div class="panel" role="dialog" aria-label="Tilpas quizzen">
+    <div class="phead">
+      <h2>Tilpas quizzen</h2>
+      <button class="btn acc" id="btnEditDone">Færdig ✓</button>
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="content" class="on">Spørgsmål</button>
+      <button data-tab="look">Udseende</button>
+      <button data-tab="teams">Hold &amp; regler</button>
+      <button data-tab="sound">Lyd &amp; musik</button>
+      <button data-tab="file">Gem &amp; del</button>
+    </div>
+    <div class="pbody" id="pbody"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   QUIZ-TAVLE — alt ligger i denne ene fil.
+   Spørgsmål, udseende og hold gemmes automatisk i browseren
+   (localStorage) og kan eksporteres/importeres som .json.
+   ===================================================================== */
+
+const STORE_KEY = 'quiztavle.v1';
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ---------- Temaer ---------- */
+const PRESETS = {
+  klassisk: { name:'Klassisk blå', pageBg:'#000000', pageText:'#ffffff', boardGap:'#000000', tileBg:'#060ce9', tileBg2:'#0410a8', valueColor:'#ffcc00', catBg:'#060ce9', catText:'#ffffff', qBg:'#060ce9', qText:'#ffffff', aText:'#ffcc00', headingFont:'Anton', bodyFont:'system', radius:4, uppercase:true },
+  jul:      { name:'Jul', pageBg:'#0b3d20', pageText:'#ffffff', boardGap:'#072a16', tileBg:'#c0142a', tileBg2:'#8a0d1d', valueColor:'#ffd966', catBg:'#14602f', catText:'#ffffff', qBg:'#c0142a', qText:'#ffffff', aText:'#ffd966', headingFont:'Mountains of Christmas', bodyFont:'system', radius:10, uppercase:false },
+  halloween:{ name:'Halloween', pageBg:'#0e0b12', pageText:'#ffffff', boardGap:'#0e0b12', tileBg:'#3b1e54', tileBg2:'#22102f', valueColor:'#ff7a1a', catBg:'#1d1d1d', catText:'#ff7a1a', qBg:'#3b1e54', qText:'#ffffff', aText:'#a6ff4d', headingFont:'Creepster', bodyFont:'system', radius:8, uppercase:true },
+  fest:     { name:'Fødselsdag', pageBg:'#ffe7f1', pageText:'#4a1036', boardGap:'#ffe7f1', tileBg:'#ff4f8b', tileBg2:'#e2306f', valueColor:'#ffffff', catBg:'#7b2cbf', catText:'#ffffff', qBg:'#7b2cbf', qText:'#ffffff', aText:'#ffe066', headingFont:'Lobster', bodyFont:'system', radius:16, uppercase:false },
+  sommer:   { name:'Sommer', pageBg:'#bfeaf5', pageText:'#0b3954', boardGap:'#bfeaf5', tileBg:'#ff9f1c', tileBg2:'#f37a00', valueColor:'#ffffff', catBg:'#0b7a75', catText:'#ffffff', qBg:'#0b7a75', qText:'#ffffff', aText:'#ffdd57', headingFont:'Bebas Neue', bodyFont:'system', radius:14, uppercase:true },
+  sundhed:  { name:'Sundhed', pageBg:'#eef6f1', pageText:'#173c2c', boardGap:'#eef6f1', tileBg:'#2f7d5b', tileBg2:'#22603f', valueColor:'#f8e08e', catBg:'#173c2c', catText:'#ffffff', qBg:'#2f7d5b', qText:'#ffffff', aText:'#f8e08e', headingFont:'Montserrat', bodyFont:'system', radius:12, uppercase:false },
+  retro:    { name:'Retro neon', pageBg:'#0d0221', pageText:'#ffffff', boardGap:'#0d0221', tileBg:'#261447', tileBg2:'#170b2e', valueColor:'#00f0ff', catBg:'#0d0221', catText:'#ff3cac', qBg:'#261447', qText:'#ffffff', aText:'#00f0ff', headingFont:'Press Start 2P', bodyFont:'system', radius:0, uppercase:true },
+  firma:    { name:'Minimal', pageBg:'#f4f5f7', pageText:'#14161b', boardGap:'#f4f5f7', tileBg:'#ffffff', tileBg2:'#eceef2', valueColor:'#14161b', catBg:'#14161b', catText:'#ffffff', qBg:'#14161b', qText:'#ffffff', aText:'#7cc4ff', headingFont:'Oswald', bodyFont:'system', radius:10, uppercase:true },
+};
+
+/* Skrifttyper: lokale + Google Fonts (hentes kun hvis valgt og der er internet) */
+const FONTS = {
+  'system':'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  'Anton':'"Anton", Impact, "Arial Black", sans-serif',
+  'Bebas Neue':'"Bebas Neue", Impact, sans-serif',
+  'Oswald':'"Oswald", "Arial Narrow", sans-serif',
+  'Montserrat':'"Montserrat", system-ui, sans-serif',
+  'Poppins':'"Poppins", system-ui, sans-serif',
+  'Lobster':'"Lobster", Georgia, cursive',
+  'Pacifico':'"Pacifico", Georgia, cursive',
+  'Mountains of Christmas':'"Mountains of Christmas", Georgia, cursive',
+  'Creepster':'"Creepster", Impact, fantasy',
+  'Press Start 2P':'"Press Start 2P", "Courier New", monospace',
+  'Playfair Display':'"Playfair Display", Georgia, serif',
+  'Impact':'Impact, "Arial Black", sans-serif',
+  'Georgia':'Georgia, "Times New Roman", serif',
+  'Comic Sans MS':'"Comic Sans MS", "Comic Neue", cursive',
+};
+const LOCAL_FONTS = ['system','Impact','Georgia','Comic Sans MS'];
+
+/* ---------- Eksempel-indhold ---------- */
+function q(value, question, answer, extra={}) { return { id:uid(), value, q:question, a:answer, img:'', dd:false, ...extra }; }
+function exampleConfig() {
+  return {
+    title: 'Fredagsquiz',
+    subtitle: 'Vælg en kategori og et beløb',
+    logo: '',
+    categories: [
+      { id:uid(), name:'Danmark', questions:[
+        q(100,'Hvad hedder Danmarks hovedstad?','København'),
+        q(200,'Hvor mange regioner er Danmark inddelt i?','Fem'),
+        q(300,'Hvilken by er Danmarks tredjestørste?','Odense'),
+        q(400,'Hvad hedder Danmarks højeste naturlige punkt?','Møllehøj'),
+        q(500,'I hvilket år blev Danmarks Riges Grundlov underskrevet?','1849'),
+      ]},
+      { id:uid(), name:'Krop & sundhed', questions:[
+        q(100,'Hvor mange knogler har et voksent menneske?','206'),
+        q(200,'Hvilket organ producerer insulin?','Bugspytkirtlen'),
+        q(300,'Hvilket vitamin danner huden, når den får sollys?','D-vitamin'),
+        q(400,'Hvad er kroppens største organ?','Huden'),
+        q(500,'Hvad hedder kroppens mindste knogle?','Stigbøjlen (i mellemøret)'),
+      ]},
+      { id:uid(), name:'Film & musik', questions:[
+        q(100,'Hvilket dansk band udgav "Barbie Girl"?','Aqua'),
+        q(200,'Hvad hedder løveungen i "Løvernes Konge"?','Simba'),
+        q(300,'Hvilken dansk instruktør lavede filmen "Druk" (2020)?','Thomas Vinterberg', {dd:true}),
+        q(400,'Hvilken dansk skuespiller spillede skurken Le Chiffre i "Casino Royale"?','Mads Mikkelsen'),
+        q(500,'I hvilket år vandt Danmark Eurovision med "Only Teardrops"?','2013'),
+      ]},
+      { id:uid(), name:'Mad & drikke', questions:[
+        q(100,'Hvilket land kommer pizzaen oprindeligt fra?','Italien'),
+        q(200,'Hvad er hovedingrediensen i guacamole?','Avocado'),
+        q(300,'Hvilket krydderi er verdens dyreste målt på vægt?','Safran'),
+        q(400,'Hvilken ret blev i 2014 kåret som Danmarks nationalret?','Stegt flæsk med persillesovs'),
+        q(500,'Hvilken plante laves tequila af?','Blå agave'),
+      ]},
+      { id:uid(), name:'Natur & dyr', questions:[
+        q(100,'Hvad er verdens største pattedyr?','Blåhvalen'),
+        q(200,'Hvor mange ben har en edderkop?','Otte'),
+        q(300,'Hvilken fugl er Danmarks nationalfugl?','Knopsvanen'),
+        q(400,'Hvilket dyr er det hurtigste landdyr?','Geparden'),
+        q(500,'Hvad hedder processen, hvor planter omdanner sollys til energi?','Fotosyntese'),
+      ]},
+    ],
+    teams: [
+      { id:uid(), name:'Hold 1', color:'#ff5a5f' },
+      { id:uid(), name:'Hold 2', color:'#3ec1d3' },
+      { id:uid(), name:'Hold 3', color:'#9be15d' },
+    ],
+    rules: { timer:30, autoTimer:false, deductWrong:true, answerLabel:'Svar', ddLabel:'Dobbelt op!', valuePrefix:'', valueSuffix:'' },
+    sound: { enabled:true, volume:0.8, music:true },
+    theme: { ...PRESETS.klassisk, bgImage:'' },
+  };
+}
+function blankConfig(cols=5, rows=5) {
+  const c = exampleConfig();
+  c.title = 'Min quiz'; c.subtitle = '';
+  c.categories = Array.from({length:cols}, (_,i) => ({ id:uid(), name:`Kategori ${i+1}`,
+    questions: Array.from({length:rows}, (_,r) => q((r+1)*100, '', '')) }));
+  return c;
+}
+const emptyProgress = () => ({ used:{}, results:{}, adjust:{} });
+
+/* ---------- Tilstand & lagring ---------- */
+let state;
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.config && s.config.categories) return normalize(s); }
+  } catch (e) {}
+  return { config: exampleConfig(), progress: emptyProgress() };
+}
+function normalize(s) {
+  const d = exampleConfig();
+  s.config.rules = { ...d.rules, ...(s.config.rules||{}) };
+  s.config.sound = { ...d.sound, ...(s.config.sound||{}) };
+  s.config.theme = { ...d.theme, ...(s.config.theme||{}) };
+  s.config.teams = s.config.teams || d.teams;
+  s.config.categories.forEach(c => { c.id ||= uid(); (c.questions||[]).forEach(x => { x.id ||= uid(); }); });
+  s.config.teams.forEach(t => { t.id ||= uid(); t.color ||= '#ffffff'; });
+  s.progress = { ...emptyProgress(), ...(s.progress||{}) };
+  return s;
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }, 250);
+}
+state = load();
+
+/* ---------- Små hjælpere ---------- */
+const $ = s => document.querySelector(s);
+function el(tag, props={}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'style') n.style.cssText = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k in n && k !== 'list') n[k] = v;
+    else n.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(c));
+  return n;
+}
+function toast(msg) {
+  const t = el('div', {class:'toast'}, msg); document.body.append(t);
+  setTimeout(() => t.remove(), 2200);
+}
+const fmt = v => `${state.config.rules.valuePrefix||''}${v}${state.config.rules.valueSuffix||''}`;
+
+/* =====================================================================
+   LYD — syntetiseret med Web Audio (ingen filer nødvendige).
+   Hver lyd kan erstattes af din egen lydfil under "Lyd & musik".
+   ===================================================================== */
+const SOUND_SLOTS = {
+  intro:   { name:'Intro / tavlen fyldes', desc:'Når spillet startes eller nulstilles' },
+  open:    { name:'Vælg felt', desc:'Når et spørgsmål åbnes' },
+  think:   { name:'Tænkemusik', desc:'Spiller under nedtællingen' },
+  timeup:  { name:'Tiden er gået', desc:'Når nedtællingen når 0' },
+  reveal:  { name:'Vis svar', desc:'Når svaret vises' },
+  correct: { name:'Rigtigt svar', desc:'Når et hold får point' },
+  wrong:   { name:'Forkert svar', desc:'Når et hold mister point' },
+  dd:      { name:'Dobbelt op', desc:'Når et Dobbelt op-felt åbnes' },
+};
+const AudioDB = {
+  db:null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open('quiztavle-audio', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('files');
+        r.onsuccess = () => { this.db = r.result; res(this.db); };
+        r.onerror = () => rej(r.error);
+      } catch (e) { rej(e); }
+    });
+  },
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('files', mode); const st = t.objectStore('files');
+      const r = fn(st); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
+    });
+  },
+  put(k, v) { return this.tx('readwrite', s => s.put(v, k)); },
+  del(k)    { return this.tx('readwrite', s => s.delete(k)); },
+  async all() {
+    const db = await this.open();
+    return new Promise((res) => {
+      const out = {}; const t = db.transaction('files', 'readonly');
+      const c = t.objectStore('files').openCursor();
+      c.onsuccess = () => { const cur = c.result; if (cur) { out[cur.key] = cur.value; cur.continue(); } else res(out); };
+      c.onerror = () => res(out);
+    });
+  },
+};
+
+const Sound = {
+  ctx:null, master:null, noise:null, custom:{}, // custom[slot] = {url, name}
+  get cfg() { return state.config.sound; },
+  init() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      this.ctx = new AC(); this.master = this.ctx.createGain();
+      this.master.gain.value = this.cfg.volume; this.master.connect(this.ctx.destination);
+      const len = this.ctx.sampleRate; const b = this.ctx.createBuffer(1, len, len); const d = b.getChannelData(0);
+      for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
+      this.noise = b;
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  },
+  setVolume(v) { this.cfg.volume = v; if (this.master) this.master.gain.value = v; },
+  hz: m => 440 * Math.pow(2, (m - 69) / 12),
+  tone(f, t, d, o={}) {
+    const c = this.ctx, osc = c.createOscillator(), g = c.createGain();
+    osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(f, t);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + d);
+    if (o.detune) osc.detune.value = o.detune;
+    const v = o.vol ?? .2, a = o.attack ?? .005, r = Math.min(o.release ?? .12, d * .9);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + a);
+    g.gain.setValueAtTime(v, Math.max(t + a, t + d - r)); g.gain.linearRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(o.dest || this.master); osc.start(t); osc.stop(t + d + .05);
+    return osc;
+  },
+  hiss(t, d, o={}) {
+    const c = this.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = this.noise; f.type = o.filter || 'highpass'; f.frequency.setValueAtTime(o.freq || 6000, t);
+    if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + d);
+    const v = o.vol ?? .08; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    s.connect(f); f.connect(g); g.connect(o.dest || this.master); s.start(t); s.stop(t + d + .02);
+    return s;
+  },
+  /* Afspil en lyd. Returnerer et håndtag med stop() */
+  play(slot, opts={}) {
+    if (!this.cfg.enabled) return null;
+    if (slot === 'think' && !this.cfg.music) return null;
+    const cu = this.custom[slot];
+    if (cu) {
+      const a = new Audio(cu.url); a.volume = this.cfg.volume;
+      a.play().catch(()=>{});
+      return { stop(fade=true){ if (!fade) { a.pause(); return; }
+        const v0 = a.volume; let i = 0; const iv = setInterval(() => { i++; a.volume = Math.max(0, v0*(1-i/8)); if (i>=8){ clearInterval(iv); a.pause(); } }, 30); } };
+    }
+    if (!this.init()) return null;
+    return this.synth[slot] ? this.synth[slot].call(this, opts) : null;
+  },
+  synth: {
+    intro() {
+      const t = this.ctx.currentTime + .02;
+      [60,64,67,72,76,79,84].forEach((m,i) => this.tone(this.hz(m), t + i*.07, .35, {type:'triangle', vol:.14}));
+      this.hiss(t, .8, {filter:'bandpass', freq:600, to:8000, vol:.05});
+      [72,76,79].forEach(m => this.tone(this.hz(m), t + .55, .9, {type:'sine', vol:.09, release:.6}));
+    },
+    open() {
+      const t = this.ctx.currentTime + .01;
+      this.hiss(t, .35, {filter:'bandpass', freq:400, to:5000, vol:.12});
+      this.tone(380, t, .28, {type:'sine', to:1300, vol:.12});
+      this.tone(this.hz(88), t + .26, .3, {type:'triangle', vol:.12});
+    },
+    reveal() {
+      const t = this.ctx.currentTime + .01;
+      [84,88,91,96].forEach((m,i) => this.tone(this.hz(m), t + i*.06, .6, {type:'sine', vol:.12, release:.5}));
+    },
+    correct() {
+      const t = this.ctx.currentTime + .01;
+      this.tone(this.hz(88), t, .18, {type:'triangle', vol:.22});
+      this.tone(this.hz(96), t + .14, .5, {type:'triangle', vol:.22, release:.4});
+      this.tone(this.hz(100), t + .14, .5, {type:'sine', vol:.08, release:.4});
+    },
+    wrong() {
+      const t = this.ctx.currentTime + .01;
+      this.tone(110, t, .65, {type:'sawtooth', vol:.16, release:.05});
+      this.tone(116, t, .65, {type:'square', vol:.08, release:.05});
+    },
+    timeup() {
+      const t = this.ctx.currentTime + .01;
+      [[67,0],[64,.3],[60,.6]].forEach(([m,o]) => {
+        this.tone(this.hz(m), t + o, .26, {type:'square', vol:.1});
+        this.tone(this.hz(m-12), t + o, .26, {type:'triangle', vol:.12});
+      });
+    },
+    dd() {
+      const t = this.ctx.currentTime + .01;
+      this.tone(200, t, .7, {type:'sawtooth', to:2400, vol:.07});
+      this.hiss(t, .7, {filter:'bandpass', freq:300, to:9000, vol:.08});
+      [[72,.7],[76,.85],[79,1.0],[84,1.15]].forEach(([m,o]) => this.tone(this.hz(m), t+o, .2, {type:'square', vol:.08}));
+      [72,76,79,84].forEach(m => this.tone(this.hz(m), t + 1.32, 1, {type:'sawtooth', vol:.05, release:.7}));
+    },
+    /* Original, syntetiseret tænkemusik (egen komposition). Løkker indtil nedtællingen er slut. */
+    think({ duration = 30 } = {}) {
+      const c = this.ctx, bus = c.createGain(); bus.gain.value = 1; bus.connect(this.master);
+      const nodes = []; const beat = 60 / 132; const t0 = c.currentTime + .05; const end = t0 + duration;
+      const MEL = [
+        [74,.5],[78,.5],[81,1],[83,.5],[81,.5],[78,1],
+        [79,.5],[83,.5],[86,1],[85,.5],[83,.5],[81,1],
+        [78,.5],[81,.5],[86,1],[88,.5],[86,.5],[83,1],
+        [81,1.5],[79,.5],[78,1],[76,1],
+        [74,.5],[78,.5],[81,1],[83,.5],[81,.5],[78,1],
+        [79,.5],[83,.5],[86,1],[88,.5],[90,.5],[91,1],
+        [90,.5],[88,.5],[86,.5],[83,.5],[81,1],[78,1],
+        [76,.5],[78,.5],[79,.5],[76,.5],[74,2],
+      ];
+      const BASS = [50,43,47,45,50,43,47,45]; // D G Bm A D G Bm A
+      let t = t0, loop = 0;
+      while (t < end) {
+        let mt = t;
+        for (const [m,b] of MEL) {
+          if (mt >= end) break;
+          const d = b * beat;
+          nodes.push(this.tone(this.hz(m), mt, d * .92, {type:'square', vol:.045, release:.06, dest:bus}));
+          nodes.push(this.tone(this.hz(m), mt, d * .92, {type:'triangle', vol:.07, release:.06, dest:bus}));
+          mt += d;
+        }
+        BASS.forEach((r, bar) => {
+          for (let k=0;k<4;k++) {
+            const bt = t + (bar*4 + k) * beat; if (bt >= end) return;
+            const m = (k % 2 === 0) ? r : r + 7;
+            nodes.push(this.tone(this.hz(m), bt, beat * .8, {type:'triangle', vol:.13, release:.08, dest:bus}));
+            nodes.push(this.hiss(bt, .05, {vol:.025, freq:7000, dest:bus}));
+            nodes.push(this.hiss(bt + beat/2, .04, {vol:.015, freq:8000, dest:bus}));
+          }
+        });
+        t += 32 * beat; loop++;
+      }
+      return { stop: () => {
+        const n = c.currentTime;
+        bus.gain.cancelScheduledValues(n); bus.gain.setValueAtTime(bus.gain.value, n);
+        bus.gain.linearRampToValueAtTime(0.0001, n + .25);
+        setTimeout(() => { nodes.forEach(x => { try { x.stop(); } catch(e){} }); bus.disconnect(); }, 320);
+      }};
+    },
+  },
+  async loadCustom() {
+    try {
+      const all = await AudioDB.all();
+      for (const [k, v] of Object.entries(all)) {
+        if (!v || !v.blob) continue;
+        this.custom[k] = { url: URL.createObjectURL(v.blob), name: v.name };
+      }
+    } catch (e) {}
+  },
+};
+
+/* =====================================================================
+   TEMA
+   ===================================================================== */
+const loadedFonts = new Set();
+function ensureFont(name) {
+  if (!name || LOCAL_FONTS.includes(name) || loadedFonts.has(name) || !FONTS[name]) return;
+  loadedFonts.add(name);
+  document.head.append(el('link', { rel:'stylesheet',
+    href:`https://fonts.googleapis.com/css2?family=${encodeURIComponent(name).replace(/%20/g,'+')}&display=swap` }));
+}
+function applyTheme() {
+  const th = state.config.theme, r = document.documentElement.style;
+  const map = { '--page-bg':th.pageBg, '--page-text':th.pageText, '--board-gap':th.boardGap, '--tile-bg':th.tileBg,
+    '--tile-bg2':th.tileBg2, '--value':th.valueColor, '--cat-bg':th.catBg, '--cat-text':th.catText,
+    '--q-bg':th.qBg, '--q-text':th.qText, '--a-text':th.aText };
+  for (const [k,v] of Object.entries(map)) r.setProperty(k, v);
+  ensureFont(th.headingFont); ensureFont(th.bodyFont);
+  r.setProperty('--heading-font', FONTS[th.headingFont] || FONTS.Anton);
+  r.setProperty('--body-font', FONTS[th.bodyFont] || FONTS.system);
+  r.setProperty('--radius', (th.radius ?? 6) + 'px');
+  r.setProperty('--case', th.uppercase ? 'uppercase' : 'none');
+  r.setProperty('--bg-image', th.bgImage ? `url("${String(th.bgImage).replace(/"/g,'%22')}")` : 'none');
+}
+
+/* =====================================================================
+   TAVLE & POINT
+   ===================================================================== */
+function findQ(id) {
+  for (const c of state.config.categories) for (const x of c.questions) if (x.id === id) return { cat:c, q:x };
+  return null;
+}
+function score(teamId) {
+  let s = state.progress.adjust[teamId] || 0;
+  for (const [qid, r] of Object.entries(state.progress.results)) {
+    const f = findQ(qid); if (!f) continue;
+    const val = r.wager != null && r.wager !== '' ? Number(r.wager) : Number(f.q.value) || 0;
+    const d = r.deltas && r.deltas[teamId]; if (d) s += d * val;
+  }
+  return s;
+}
+function renderHeader() {
+  const c = state.config;
+  $('#gameTitle').textContent = c.title; $('#gameSubtitle').textContent = c.subtitle;
+  $('#gameSubtitle').hidden = !c.subtitle;
+  for (const id of ['#logo', '#splashLogo']) { const im = $(id); im.hidden = !c.logo; if (c.logo) im.src = c.logo; }
+  $('#splashTitle').textContent = c.title; $('#splashSub').textContent = c.subtitle;
+  $('#btnSound').textContent = c.sound.enabled ? '🔊' : '🔇';
+  document.title = c.title || 'Quiz-tavle';
+}
+function renderBoard(animate=false) {
+  const cats = state.config.categories, board = $('#board');
+  const rows = Math.max(1, ...cats.map(c => c.questions.length));
+  board.style.gridTemplateColumns = `repeat(${Math.max(1,cats.length)}, minmax(0,1fr))`;
+  board.style.gridTemplateRows = `minmax(0,.85fr) repeat(${rows}, minmax(0,1fr))`;
+  board.replaceChildren();
+  cats.forEach(c => board.append(el('div', {class:'cell cat'}, c.name)));
+  const tiles = [];
+  for (let r=0;r<rows;r++) cats.forEach(c => {
+    const x = c.questions[r];
+    if (!x) { board.append(el('div', {class:'cell tile empty'})); return; }
+    const used = !!state.progress.used[x.id];
+    const b = el('button', { class:'cell tile' + (used ? ' used' : ''), 'aria-label':`${c.name} for ${fmt(x.value)}`,
+      onclick: e => { if (!state.progress.used[x.id]) openQuestion(x.id, e.currentTarget); } }, fmt(x.value));
+    board.append(b); tiles.push(b);
+  });
+  board.classList.toggle('filling', animate);
+  if (animate) {
+    const order = tiles.map((_,i)=>i).sort(() => Math.random() - .5);
+    order.forEach((ti, k) => tiles[ti].style.animationDelay = (k * (900 / Math.max(1,tiles.length))) + 'ms');
+    setTimeout(() => board.classList.remove('filling'), 1400);
+  }
+}
+function renderScores() {
+  const sb = $('#scoreboard'); sb.replaceChildren();
+  state.config.teams.forEach(t => {
+    const s = score(t.id);
+    const bump = d => { state.progress.adjust[t.id] = (state.progress.adjust[t.id]||0) + d; save(); renderScores(); };
+    sb.append(el('div', {class:'team', style:`--tcol:${t.color}`},
+      el('div', {class:'tn'}, t.name),
+      el('button', {class:'ts' + (s < 0 ? ' neg' : ''), title:'Klik for at rette pointtallet', onclick: () => {
+        const v = prompt(`Ret point for ${t.name}:`, s); if (v == null || isNaN(Number(v))) return;
+        bump(Number(v) - s);
+      }}, fmt(s)),
+      el('div', {class:'adj'},
+        el('button', {title:'-100', onclick:()=>bump(-100)}, '−'),
+        el('button', {title:'+100', onclick:()=>bump(100)}, '+'))));
+  });
+}
+function renderAll(animate=false) { applyTheme(); renderHeader(); renderBoard(animate); renderScores(); }
+
+/* =====================================================================
+   SPØRGSMÅL
+   ===================================================================== */
+let cur = null; // { id, revealed, timer, music, ddStage }
+function openQuestion(id, tileEl) {
+  const f = findQ(id); if (!f) return;
+  const { cat, q:x } = f;
+  state.progress.used[id] = true; save();
+  cur = { id, revealed:false, timer:null, music:null, ddStage: !!x.dd };
+  const card = $('#qCard');
+  if (tileEl) {
+    const r = tileEl.getBoundingClientRect();
+    card.style.setProperty('--ox', (r.left + r.width/2) + 'px');
+    card.style.setProperty('--oy', (r.top + r.height/2) + 'px');
+  }
+  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  $('#qCat').textContent = cat.name;
+  $('#qVal').textContent = fmt(x.value);
+  $('#qOverlay').hidden = false;
+  resetTimerUI();
+  if (x.dd) { Sound.play('dd'); renderDD(x); }
+  else { Sound.play('open'); renderQ(x); }
+  renderBoard();
+}
+function renderDD(x) {
+  const body = $('#qBody'); body.replaceChildren();
+  const r = state.config.rules;
+  const teams = state.config.teams;
+  const sel = el('select', {id:'ddTeam'}, teams.map(t => el('option', {value:t.id}, t.name)));
+  const inp = el('input', {type:'number', id:'ddWager', value:x.value, min:0, step:50});
+  body.append(el('div', {class:'dd'}, r.ddLabel || 'Dobbelt op!'),
+    el('div', {class:'wager'}, el('label', {}, 'Hold: ', sel), el('label', {}, 'Indsats: ', inp)),
+    el('button', {class:'bigbtn', onclick: () => {
+      cur.ddStage = false;
+      state.progress.results[x.id] = { ...(state.progress.results[x.id]||{}), wager: Number(inp.value)||0, ddTeam: sel.value, deltas:{} };
+      $('#qVal').textContent = fmt(Number(inp.value)||0) + ' · ' + (teams.find(t=>t.id===sel.value)?.name || '');
+      save(); renderQ(x);
+    }}, 'Vis spørgsmålet'));
+  $('#qControls').hidden = true; $('#timerWrap').hidden = true; $('#award').replaceChildren();
+}
+function renderQ(x) {
+  const body = $('#qBody'); body.replaceChildren();
+  body.append(el('div', {class:'qtext'}, x.q || '(Intet spørgsmål skrevet endnu)'));
+  if (x.img) body.append(el('img', {class:'qimg', src:x.img, alt:''}));
+  $('#qControls').hidden = false; $('#timerWrap').hidden = false;
+  $('#btnReveal').textContent = 'Vis svar';
+  renderAward();
+  if (state.config.rules.autoTimer) startTimer();
+}
+function reveal() {
+  if (!cur || cur.ddStage) return;
+  const x = findQ(cur.id)?.q; if (!x) return;
+  if (cur.revealed) return;
+  cur.revealed = true; stopTimer(false); Sound.play('reveal');
+  $('#qBody').append(el('div', {class:'atext'}, el('small', {}, state.config.rules.answerLabel || 'Svar'), x.a || '—'));
+  $('#btnReveal').textContent = '✓ Svaret vises';
+}
+function renderAward() {
+  const box = $('#award'); box.replaceChildren(); if (!cur) return;
+  const res = state.progress.results[cur.id] || { deltas:{} };
+  const teams = res.ddTeam ? state.config.teams.filter(t => t.id === res.ddTeam) : state.config.teams;
+  const deduct = state.config.rules.deductWrong || !!res.ddTeam;
+  teams.forEach(t => {
+    const d = res.deltas?.[t.id] || 0;
+    const set = v => {
+      const r = state.progress.results[cur.id] || { deltas:{} };
+      r.deltas = r.deltas || {};
+      r.deltas[t.id] = (r.deltas[t.id] === v) ? 0 : v;
+      if (r.deltas[t.id] === 1) Sound.play('correct'); else if (r.deltas[t.id] === -1) Sound.play('wrong');
+      if (r.deltas[t.id] === 1) stopTimer(false);
+      state.progress.results[cur.id] = r; save(); renderAward(); renderScores();
+    };
+    box.append(el('div', {class:'who', style:`--tcol:${t.color}`}, el('span', {}, t.name),
+      el('button', {class:'ok' + (d===1?' on':''), title:'Rigtigt', onclick:()=>set(1)}, '✓'),
+      el('button', {class:'no' + (d===-1?' on':''), title: deduct ? 'Forkert (trækker point fra)' : 'Forkert (ingen fradrag)',
+        onclick:()=>{ if (deduct) set(-1); else { Sound.play('wrong'); } }}, '✗')));
+  });
+}
+function closeQuestion() {
+  stopTimer(false); cur = null; $('#qOverlay').hidden = true; renderBoard(); renderScores();
+}
+
+/* ---------- Nedtælling ---------- */
+function resetTimerUI() {
+  const s = state.config.rules.timer || 30;
+  $('#tFill').style.transition = 'none'; $('#tFill').style.transform = 'scaleX(1)';
+  $('#tNum').textContent = s; $('#btnTimer').textContent = '⏱ Start nedtælling';
+}
+function startTimer() {
+  if (!cur || cur.ddStage) return;
+  if (cur.timer) { stopTimer(false); return; }
+  const secs = Number(state.config.rules.timer) || 30;
+  resetTimerUI();
+  const fill = $('#tFill'); void fill.offsetWidth;
+  fill.style.transition = `transform ${secs}s linear`; fill.style.transform = 'scaleX(0)';
+  const start = performance.now();
+  cur.music = Sound.play('think', { duration: secs });
+  $('#btnTimer').textContent = '⏸ Stop nedtælling';
+  cur.timer = setInterval(() => {
+    const left = Math.max(0, Math.ceil(secs - (performance.now() - start) / 1000));
+    $('#tNum').textContent = left;
+    if (left <= 0) { stopTimer(true); }
+  }, 100);
+}
+function stopTimer(timeUp) {
+  if (!cur) return;
+  if (cur.timer) { clearInterval(cur.timer); cur.timer = null; }
+  if (cur.music) { cur.music.stop(); cur.music = null; }
+  const fill = $('#tFill'); const cs = getComputedStyle(fill).transform;
+  fill.style.transition = 'none'; fill.style.transform = cs === 'none' ? 'scaleX(1)' : cs;
+  $('#btnTimer').textContent = '⏱ Start nedtælling';
+  if (timeUp) { $('#tNum').textContent = '0'; Sound.play('timeup'); }
+}
+
+/* =====================================================================
+   EDITOR
+   ===================================================================== */
+let tab = 'content';
+function changed(rerenderEditor=false) { save(); renderAll(); if (rerenderEditor) renderEditor(); }
+function field(label, input, cls='') { return el('label', {class:'fld ' + cls}, label, input); }
+function txt(obj, key, opts={}) {
+  const tag = opts.area ? 'textarea' : 'input';
+  return el(tag, { type: opts.area ? undefined : (opts.type||'text'), value: obj[key] ?? '', placeholder: opts.ph || '', rows: opts.rows,
+    oninput: e => { obj[key] = opts.type === 'number' ? Number(e.target.value) : e.target.value; changed(); if (opts.after) opts.after(); } });
+}
+function color(obj, key) { return el('input', {type:'color', value: obj[key] || '#000000', oninput: e => { obj[key] = e.target.value; changed(); }}); }
+function check(obj, key, label, after) {
+  return el('label', {class:'chk'}, el('input', {type:'checkbox', checked: !!obj[key],
+    onchange: e => { obj[key] = e.target.checked; changed(); if (after) after(); }}), label);
+}
+function openEditor() { $('#editor').hidden = false; renderEditor(); }
+function closeEditor() { $('#editor').hidden = true; renderAll(); }
+
+function renderEditor() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const p = $('#pbody'); const scroll = p.scrollTop; p.replaceChildren();
+  ({ content: edContent, look: edLook, teams: edTeams, sound: edSound, file: edFile })[tab](p);
+  p.scrollTop = scroll;
+}
+
+/* --- Spørgsmål --- */
+const openCats = new Set();
+function edContent(p) {
+  const c = state.config;
+  p.append(el('h3', {}, 'Titel'),
+    el('div', {class:'row'}, field('Titel', txt(c, 'title')), field('Undertitel', txt(c, 'subtitle', {ph:'Valgfri'}))));
+
+  const rows = Math.max(0, ...c.categories.map(x => x.questions.length));
+  p.append(el('h3', {}, 'Tavlens størrelse'),
+    el('div', {class:'row'},
+      el('span', {}, `${c.categories.length} kategorier × ${rows} spørgsmål`),
+      el('button', {class:'btn', onclick: () => { c.categories.push({ id:uid(), name:`Kategori ${c.categories.length+1}`,
+        questions: Array.from({length: rows || 5}, (_,r) => q(c.categories[0]?.questions[r]?.value ?? (r+1)*100, '', '')) }); changed(true); }}, '+ Kategori'),
+      el('button', {class:'btn', onclick: () => { c.categories.forEach(cat => { const last = cat.questions[cat.questions.length-1];
+        const step = cat.questions.length > 1 ? last.value - cat.questions[cat.questions.length-2].value : 100;
+        cat.questions.push(q((last ? Number(last.value) : 0) + (step || 100), '', '')); }); changed(true); }}, '+ Række'),
+      el('button', {class:'btn', onclick: () => { if (rows <= 1) return; if (!confirm('Fjern nederste række i alle kategorier?')) return;
+        c.categories.forEach(cat => cat.questions.length >= rows && cat.questions.pop()); changed(true); }}, '− Række')));
+  const start = el('input', {type:'number', value:100, step:50}); const step = el('input', {type:'number', value:100, step:50});
+  p.append(el('div', {class:'row'}, field('Første pointværdi', start, 'sm'), field('Stigning pr. række', step, 'sm'),
+    el('button', {class:'btn', onclick: () => { c.categories.forEach(cat => cat.questions.forEach((x,i) => x.value = Number(start.value) + i*Number(step.value))); changed(true); }}, 'Sæt alle point')));
+
+  p.append(el('h3', {}, 'Kategorier og spørgsmål'),
+    el('p', {class:'note'}, 'Klik på en kategori for at folde den ud. "Dobbelt op" lader holdet selv vælge sin indsats. Billede er valgfrit (indsæt et link til et billede).'));
+  c.categories.forEach((cat, ci) => {
+    const d = el('details', {class:'catcard', open: openCats.has(cat.id), ontoggle: e => e.target.open ? openCats.add(cat.id) : openCats.delete(cat.id)});
+    const filled = cat.questions.filter(x => x.q && x.a).length;
+    d.append(el('summary', {},
+      el('span', {class:'grow'}, cat.name || '(uden navn)'),
+      el('small', {style:'color:var(--ui-muted);font-weight:400'}, `${filled}/${cat.questions.length} udfyldt`),
+      el('button', {class:'btn sm', title:'Flyt til venstre', onclick: e => { e.preventDefault(); if (ci>0) { [c.categories[ci-1], c.categories[ci]] = [c.categories[ci], c.categories[ci-1]]; changed(true);} }}, '◀'),
+      el('button', {class:'btn sm', title:'Flyt til højre', onclick: e => { e.preventDefault(); if (ci<c.categories.length-1) { [c.categories[ci+1], c.categories[ci]] = [c.categories[ci], c.categories[ci+1]]; changed(true);} }}, '▶'),
+      el('button', {class:'btn sm danger', title:'Slet kategori', onclick: e => { e.preventDefault(); if (confirm(`Slet kategorien "${cat.name}"?`)) { c.categories.splice(ci,1); changed(true); } }}, '✕')));
+    const inner = el('div', {class:'catinner'});
+    inner.append(el('div', {class:'row', style:'margin-top:10px'}, field('Kategorinavn', txt(cat, 'name', { after: () => { d.querySelector('summary .grow').textContent = cat.name || '(uden navn)'; } }))));
+    cat.questions.forEach(x => {
+      inner.append(el('div', {class:'qrow'},
+        field('Point', txt(x, 'value', {type:'number'})),
+        field('Spørgsmål', txt(x, 'q', {area:true, ph:'Skriv spørgsmålet…'})),
+        field('Svar', txt(x, 'a', {area:true, ph:'Skriv svaret…'})),
+        el('div', {class:'extra'}, field('Billede (link, valgfrit)', txt(x, 'img', {type:'url', ph:'https://…'})), check(x, 'dd', 'Dobbelt op'))));
+    });
+    d.append(inner); p.append(d);
+  });
+
+  p.append(el('h3', {}, 'Hurtig-import fra Excel / regneark'),
+    el('p', {class:'note'}, 'Indsæt én linje pr. spørgsmål med kolonnerne: Kategori · Point · Spørgsmål · Svar — adskilt af tabulator (kopiér direkte fra Excel/Google Sheets) eller semikolon. Det erstatter de nuværende spørgsmål.'));
+  const ta = el('textarea', {rows:6, placeholder:'Danmark;100;Hvad hedder Danmarks hovedstad?;København\nDanmark;200;Hvor mange regioner har Danmark?;Fem'});
+  p.append(field('', ta), el('div', {class:'row'}, el('button', {class:'btn acc', onclick: () => {
+    const lines = ta.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const cats = []; const byName = {};
+    for (const l of lines) {
+      const parts = l.includes('\t') ? l.split('\t') : l.split(';');
+      if (parts.length < 4) continue;
+      const [cn, val, qq, ...rest] = parts.map(s => s.trim());
+      if (/^kategori$/i.test(cn)) continue; // overskriftslinje
+      if (!byName[cn]) { byName[cn] = { id:uid(), name:cn, questions:[] }; cats.push(byName[cn]); }
+      byName[cn].questions.push(q(Number(val) || (byName[cn].questions.length+1)*100, qq, rest.join(';')));
+    }
+    if (!cats.length) { toast('Fandt ingen gyldige linjer (der skal være 4 kolonner).'); return; }
+    if (!confirm(`Importér ${cats.length} kategorier og erstat de nuværende spørgsmål?`)) return;
+    c.categories = cats; state.progress = emptyProgress(); changed(true); toast('Spørgsmål importeret');
+  }}, 'Importér'), el('button', {class:'btn', onclick: () => {
+    ta.value = c.categories.flatMap(cat => cat.questions.map(x => [cat.name, x.value, x.q, x.a].join('\t'))).join('\n');
+    ta.select(); toast('Nuværende spørgsmål indsat — kan kopieres til et regneark');
+  }}, 'Vis nuværende som tekst')));
+}
+
+/* --- Udseende --- */
+function edLook(p) {
+  const th = state.config.theme, c = state.config;
+  p.append(el('h3', {}, 'Færdige temaer'), el('p', {class:'note'}, 'Vælg et tema som udgangspunkt — og finjustér farver og skrift nedenfor.'));
+  const grid = el('div', {class:'presets'});
+  for (const [key, pr] of Object.entries(PRESETS)) {
+    ensureFont(pr.headingFont);
+    grid.append(el('button', {class:'preset', onclick: () => { Object.assign(th, pr); changed(true); toast(`Tema: ${pr.name}`); }},
+      el('div', {class:'sw', style:`background:${pr.pageBg}`},
+        el('i', {style:`background:${pr.catBg};color:${pr.catText}`}, 'A'),
+        el('i', {style:`background:${pr.tileBg};color:${pr.valueColor};font-family:${FONTS[pr.headingFont]}`}, '100'),
+        el('i', {style:`background:${pr.tileBg};color:${pr.valueColor};font-family:${FONTS[pr.headingFont]}`}, '200')),
+      el('b', {}, pr.name)));
+  }
+  p.append(grid);
+
+  p.append(el('h3', {}, 'Farver'));
+  const cols = [['Baggrund','pageBg'],['Tekst (top)','pageText'],['Mellemrum i tavlen','boardGap'],['Felt','tileBg'],['Felt (gradient)','tileBg2'],
+    ['Pointtal','valueColor'],['Kategori-baggrund','catBg'],['Kategori-tekst','catText'],['Spørgsmål-baggrund','qBg'],['Spørgsmål-tekst','qText'],['Svar-tekst','aText']];
+  p.append(el('div', {class:'grid2'}, cols.map(([l,k]) => field(l, color(th, k)))));
+
+  p.append(el('h3', {}, 'Skrift & form'));
+  const fontSel = key => el('select', {onchange: e => { th[key] = e.target.value; changed(); }},
+    Object.keys(FONTS).map(f => el('option', {value:f, selected: th[key] === f}, f === 'system' ? 'Standard (system)' : f)));
+  const rad = el('input', {type:'range', min:0, max:24, value: th.radius ?? 6, oninput: e => { th.radius = Number(e.target.value); changed(); }});
+  p.append(el('div', {class:'row'}, field('Overskrift-skrift (point, kategorier, spørgsmål)', fontSel('headingFont')), field('Brødtekst-skrift', fontSel('bodyFont'))),
+    el('div', {class:'row'}, field('Afrundede hjørner', rad), el('div', {class:'fld'}, check(th, 'uppercase', 'STORE BOGSTAVER på tavlen'))),
+    el('p', {class:'note'}, 'Skrifttyper som Anton, Lobster m.fl. hentes fra Google Fonts og kræver internet. Uden net bruges en lignende standardskrift.'));
+
+  p.append(el('h3', {}, 'Billeder & pointvisning'),
+    el('div', {class:'row'}, field('Baggrundsbillede (link)', txt(th, 'bgImage', {type:'url', ph:'https://…'})), field('Logo (link)', txt(c, 'logo', {type:'url', ph:'https://…'}))),
+    el('div', {class:'row'}, field('Før point (fx "$")', txt(c.rules, 'valuePrefix', {ph:''}), 'sm'), field('Efter point (fx " kr.")', txt(c.rules, 'valueSuffix', {ph:''}), 'sm')));
+  const up = (label, setter) => el('label', {class:'btn'}, label, el('input', {type:'file', accept:'image/*', hidden:true, onchange: e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 1.5e6) { toast('Billedet er stort — brug gerne et link eller et mindre billede (under 1,5 MB).'); }
+    const r = new FileReader(); r.onload = () => { setter(r.result); changed(true); }; r.readAsDataURL(f);
+  }}));
+  p.append(el('div', {class:'row'}, up('Upload baggrundsbillede', v => th.bgImage = v), up('Upload logo', v => c.logo = v),
+    el('button', {class:'btn', onclick: () => { th.bgImage = ''; c.logo = ''; changed(true); }}, 'Fjern billeder')));
+}
+
+/* --- Hold & regler --- */
+function edTeams(p) {
+  const c = state.config;
+  p.append(el('h3', {}, 'Hold / deltagere'));
+  c.teams.forEach((t, i) => p.append(el('div', {class:'teamrow'},
+    el('input', {type:'color', value:t.color, oninput: e => { t.color = e.target.value; changed(); }}),
+    el('input', {type:'text', value:t.name, oninput: e => { t.name = e.target.value; changed(); }}),
+    el('span', {style:'min-width:70px;text-align:right;color:var(--ui-muted)'}, fmt(score(t.id))),
+    el('button', {class:'btn sm danger', onclick: () => { if (c.teams.length > 1 && confirm(`Fjern ${t.name}?`)) { c.teams.splice(i,1); changed(true); } }}, '✕'))));
+  const palette = ['#ff5a5f','#3ec1d3','#9be15d','#ffb400','#c77dff','#ff8fab','#4dabf7','#f4a261'];
+  p.append(el('button', {class:'btn', onclick: () => { c.teams.push({ id:uid(), name:`Hold ${c.teams.length+1}`, color: palette[c.teams.length % palette.length] }); changed(true); }}, '+ Tilføj hold'));
+
+  p.append(el('h3', {}, 'Regler'),
+    el('div', {class:'row'}, field('Nedtælling (sekunder)', txt(c.rules, 'timer', {type:'number'}), 'sm'),
+      field('Overskrift over svaret', txt(c.rules, 'answerLabel')), field('Tekst ved Dobbelt op-felt', txt(c.rules, 'ddLabel'))),
+    el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
+      check(c.rules, 'deductWrong', 'Træk point fra ved forkert svar'),
+      check(c.rules, 'autoTimer', 'Start nedtællingen automatisk, når et spørgsmål åbnes')));
+}
+
+/* --- Lyd --- */
+function edSound(p) {
+  const s = state.config.sound;
+  p.append(el('div', {class:'callout'},
+    'Alle lyde og tænkemusikken er syntetiseret direkte i browseren og er original musik — så skabelonen kan deles frit. ',
+    'Har du selv en lydfil, du må bruge (fx en købt/licenseret version af den kendte tænkemelodi), kan du uploade den nedenfor; den gemmes kun i din egen browser.'));
+  p.append(el('h3', {}, 'Generelt'),
+    el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
+      check(s, 'enabled', 'Lyd slået til'), check(s, 'music', 'Spil tænkemusik under nedtællingen')),
+    el('div', {class:'row'}, field('Lydstyrke', el('input', {type:'range', min:0, max:1, step:.05, value:s.volume, oninput: e => { Sound.setVolume(Number(e.target.value)); save(); }}))));
+  p.append(el('h3', {}, 'Lydeffekter'));
+  let preview = null;
+  for (const [slot, info] of Object.entries(SOUND_SLOTS)) {
+    const cu = Sound.custom[slot];
+    p.append(el('div', {class:'sndrow'},
+      el('div', {}, el('div', {class:'nm'}, info.name), el('div', {class:'st'}, info.desc + ' · ' + (cu ? `Egen fil: ${cu.name}` : 'Indbygget lyd'))),
+      el('div', {class:'bt'},
+        el('button', {class:'btn sm', onclick: () => {
+          if (preview) { preview.stop(); preview = null; }
+          const was = s.enabled, wasM = s.music; s.enabled = true; s.music = true;
+          preview = Sound.play(slot, { duration: 8 }); s.enabled = was; s.music = wasM;
+          if (slot === 'think' && preview) { const h = preview; setTimeout(() => h.stop(), 8000); }
+        }}, '▶ Afspil'),
+        el('button', {class:'btn sm', onclick: () => { if (preview) { preview.stop(); preview = null; } }}, '■'),
+        el('label', {class:'btn sm'}, 'Upload egen…', el('input', {type:'file', accept:'audio/*', hidden:true, onchange: async e => {
+          const f = e.target.files[0]; if (!f) return;
+          try { await AudioDB.put(slot, { blob:f, name:f.name }); } catch (err) { toast('Kunne ikke gemme filen i browseren'); }
+          if (Sound.custom[slot]) URL.revokeObjectURL(Sound.custom[slot].url);
+          Sound.custom[slot] = { url: URL.createObjectURL(f), name: f.name }; renderEditor(); toast('Lyd gemt');
+        }})),
+        cu && el('button', {class:'btn sm danger', onclick: async () => {
+          try { await AudioDB.del(slot); } catch (e) {}
+          URL.revokeObjectURL(cu.url); delete Sound.custom[slot]; renderEditor();
+        }}, 'Brug indbygget'))));
+  }
+}
+
+/* --- Gem & del --- */
+function edFile(p) {
+  p.append(el('p', {class:'note'}, 'Alt gemmes automatisk i denne browser. Eksportér quizzen som fil for at tage backup, dele den eller have flere quizzer klar (fx én til julefrokosten og én til fødselsdagen).'));
+  p.append(el('h3', {}, 'Eksportér & importér'), el('div', {class:'row'},
+    el('button', {class:'btn acc', onclick: () => {
+      const data = JSON.stringify({ format:'quiztavle', version:1, config: state.config }, null, 2);
+      const a = el('a', { href: URL.createObjectURL(new Blob([data], {type:'application/json'})),
+        download: (state.config.title || 'quiz').replace(/[^\wæøåÆØÅ\- ]+/g,'').trim().replace(/\s+/g,'-').toLowerCase() + '.json' });
+      document.body.append(a); a.click(); a.remove();
+    }}, '⬇ Eksportér quiz (.json)'),
+    el('label', {class:'btn'}, '⬆ Importér quiz…', el('input', {type:'file', accept:'.json,application/json', hidden:true, onchange: e => {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader(); r.onload = () => {
+        try {
+          const d = JSON.parse(r.result); const cfg = d.config || d;
+          if (!cfg.categories) throw new Error('mangler kategorier');
+          state = normalize({ config: cfg, progress: emptyProgress() }); changed(true); toast('Quiz importeret');
+        } catch (err) { toast('Filen kunne ikke læses som en quiz'); }
+      }; r.readAsText(f);
+    }}))),
+    el('p', {class:'note'}, 'Egne lydfiler følger ikke med i eksporten — de ligger kun i browseren, hvor de blev uploadet.'));
+  p.append(el('h3', {}, 'Start forfra'), el('div', {class:'row'},
+    el('button', {class:'btn', onclick: () => { if (confirm('Nulstil point og gør alle felter klar igen?')) { state.progress = emptyProgress(); changed(true); toast('Spillet er nulstillet'); } }}, 'Nulstil point & tavle'),
+    el('button', {class:'btn', onclick: () => { const cols = Number(prompt('Antal kategorier?', 5)); const rows = Number(prompt('Antal spørgsmål pr. kategori?', 5));
+      if (!cols || !rows) return; if (!confirm('Erstat alle spørgsmål med en tom skabelon?')) return;
+      const keep = { theme: state.config.theme, teams: state.config.teams, sound: state.config.sound, rules: state.config.rules };
+      state = { config: { ...blankConfig(Math.min(cols,12), Math.min(rows,10)), ...keep }, progress: emptyProgress() }; tab = 'content'; changed(true); }}, 'Tom skabelon (behold udseende)'),
+    el('button', {class:'btn danger', onclick: () => { if (confirm('Gendan eksempel-quizzen? Dine spørgsmål og indstillinger overskrives.')) { state = { config: exampleConfig(), progress: emptyProgress() }; changed(true); } }}, 'Gendan eksempel')));
+}
+
+/* =====================================================================
+   OPSTART & GENVEJE
+   ===================================================================== */
+$('#btnStart').onclick = () => { Sound.init(); $('#splash').hidden = true; renderBoard(true); Sound.play('intro'); };
+$('#btnEdit').onclick = openEditor;
+$('#btnEditDone').onclick = closeEditor;
+$('#editor').addEventListener('click', e => { if (e.target.id === 'editor') closeEditor(); });
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { tab = b.dataset.tab; renderEditor(); } });
+$('#btnSound').onclick = () => { state.config.sound.enabled = !state.config.sound.enabled; save(); renderHeader(); };
+$('#btnFull').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); };
+$('#btnNew').onclick = () => { if (!confirm('Start et nyt spil? Point nulstilles, og alle felter bliver klar igen.')) return;
+  state.progress = emptyProgress(); save(); renderAll(true); Sound.play('intro'); };
+$('#btnTimer').onclick = startTimer;
+$('#btnReveal').onclick = reveal;
+$('#btnClose').onclick = closeQuestion;
+document.addEventListener('keydown', e => {
+  if (!$('#editor').hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if ($('#qOverlay').hidden) return;
+  if (e.key === 'Escape') closeQuestion();
+  else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); reveal(); }
+  else if (e.key.toLowerCase() === 't') startTimer();
+});
+
+renderAll();
+Sound.loadCustom();
+</script>
+</body>
+</html>
