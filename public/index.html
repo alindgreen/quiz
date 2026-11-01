@@ -165,6 +165,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
   <div class="actions">
     <button class="tbtn" id="btnSound" title="Lyd til/fra">🔊</button>
     <button class="tbtn" id="btnFull" title="Fuld skærm">⛶</button>
+    <button class="tbtn" id="btnHome" title="Vis startskærmen med titelmelodi">⌂ Start</button>
     <button class="tbtn" id="btnNew" title="Nulstil point og tavle">↺ Nyt spil</button>
     <button class="tbtn primary" id="btnEdit">✎ Tilpas</button>
   </div>
@@ -178,6 +179,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
   <h2 id="splashTitle"></h2>
   <p id="splashSub"></p>
   <button class="bigbtn" id="btnStart">▶ Start spillet</button>
+  <button class="tbtn" id="btnTitle">♪ Spil titelmelodi</button>
 </div>
 
 <div id="qOverlay" class="overlay" hidden>
@@ -220,7 +222,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '4';
+const APP_VERSION = '5';
 const STORE_KEY = 'quiztavle.v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -306,7 +308,7 @@ function exampleConfig() {
       { id:uid(), name:'Hold 3', color:'#9be15d' },
     ],
     rules: { timer:30, autoTimer:false, deductWrong:true, answerLabel:'Svar', ddLabel:'Dobbelt op!', valuePrefix:'', valueSuffix:'' },
-    sound: { enabled:true, volume:0.8, music:true },
+    sound: { enabled:true, volume:0.8, music:true, titleMusic:true },
     theme: { ...PRESETS.klassisk, bgImage:'' },
   };
 }
@@ -383,6 +385,7 @@ function wavBlob(buf) {
   return new Blob([ab], { type:'audio/wav' });
 }
 const SOUND_SLOTS = {
+  title:   { name:'Titelmelodi', desc:'Spiller på startskærmen, indtil spillet startes' },
   intro:   { name:'Intro / tavlen fyldes', desc:'Når spillet startes eller nulstilles' },
   open:    { name:'Vælg felt', desc:'Når et spørgsmål åbnes' },
   think:   { name:'Tænkemusik', desc:'Spiller under nedtællingen' },
@@ -428,7 +431,7 @@ const AudioDB = {
 const Sound = {
   ctx:null, master:null, noise:null, custom:{}, // custom[slot] = {url, name}
   get cfg() { return state.config.sound; },
-  unlocked:false, warned:false, players:{}, rendered:{}, rendering:{}, log:[],
+  unlocked:false, warned:false, live:[], players:{}, rendered:{}, rendering:{}, log:[],
   note(msg) { this.log.unshift(new Date().toLocaleTimeString('da-DK') + '  ' + msg); this.log.length = Math.min(this.log.length, 12);
     if (!$('#editor').hidden && tab === 'sound') { const d = $('#sndlog'); if (d) d.textContent = this.log.join('\n'); } },
   /* Én fast <audio> pr. lyd. De "låses op" ved første klik, så de også må spille
@@ -473,7 +476,7 @@ const Sound = {
     return b;
   },
   /* Optag en indbygget lyd til en WAV-fil, så den kan spilles som en almindelig lydfil */
-  durations: { intro:1.8, open:.8, reveal:1, correct:.9, wrong:.9, timeup:1.1, dd:2.6 },
+  durations: { title:16.3, intro:1.8, open:.8, reveal:1, correct:.9, wrong:.9, timeup:1.1, dd:2.6 },
   thinkLen() { return Math.max(3, Number(state.config.rules.timer) || 30); },
   key(slot) { return slot === 'think' ? 'think:' + this.thinkLen() : slot; },
   async renderSlot(slot) {
@@ -496,7 +499,7 @@ const Sound = {
   },
   async prerender() { for (const slot of Object.keys(SOUND_SLOTS)) await this.renderSlot(slot); },
   /* Spil en lydfil på den faste <audio> for denne lyd */
-  playFile(slot, url, label, loop=false) {
+  playFile(slot, url, label, loop=false, quiet=false) {
     const a = this.player(slot);
     a.dataset.k = 'real'; a.loop = loop; a.muted = false;
     if (a.getAttribute('src') !== url) a.src = url;
@@ -506,6 +509,7 @@ const Sound = {
     let pr; try { pr = a.play(); } catch (e) { this.warn('Afspilning fejlede: ' + e.message); }
     if (pr && pr.then) pr.then(() => this.note(`▶ ${SOUND_SLOTS[slot].name}: ${label}`), err => {
       if (err && err.name === 'AbortError') return;
+      if (err && err.name === 'NotAllowedError' && quiet) { this.note(`(${SOUND_SLOTS[slot].name} venter på et klik)`); return; }
       if (err && err.name === 'NotAllowedError') this.warn('Safari/browseren blokerede lyden (NotAllowedError). Tjek Safari → Indstillinger for dette websted → Automatisk afspilning: "Tillad al automatisk afspilning".');
       else this.warn(`${label} kunne ikke afspilles (${err && err.name || 'ukendt fejl'}).`);
     });
@@ -537,16 +541,52 @@ const Sound = {
     if (!this.cfg.enabled) { this.note(`(lyd slået fra) ${slot}`); return null; }
     if (slot === 'think' && !this.cfg.music) return null;
     const cu = this.custom[slot];
-    if (cu) return this.playFile(slot, cu.url, `din fil "${cu.name}"`, slot === 'think');
+    const loop = slot === 'title' || (slot === 'think' && !!cu);
+    if (cu) return this.playFile(slot, cu.url, `din fil "${cu.name}"`, loop, opts.quiet);
     const k = this.key(slot);
-    if (this.rendered[k] && !opts.live) return this.playFile(slot, this.rendered[k], 'indbygget lyd');
+    if (this.rendered[k] && !opts.live) return this.playFile(slot, this.rendered[k], 'indbygget lyd', loop, opts.quiet);
     // Ikke klar endnu: spil direkte via Web Audio og forbered filen til næste gang
     this.renderSlot(slot);
-    if (!this.init()) return null;
+    if (opts.quiet || !this.synth[slot] || !this.init()) return null;
     this.note(`▶ ${SOUND_SLOTS[slot].name}: Web Audio (${this.ctx.state})`);
-    return this.synth[slot] ? this.synth[slot].call(this, opts) : null;
+    const bus = this.ctx.createGain(), real = this.master; bus.connect(real); this.master = bus;
+    let h; try { h = this.synth[slot].call(this, opts); } finally { this.master = real; }
+    const handle = { stop: () => { try { if (h && h.stop) h.stop(); bus.disconnect(); } catch (e) {} } };
+    this.live.push(handle); if (this.live.length > 20) this.live.shift();
+    return handle;
   },
+  /* Stop al lyd med det samme (fx når man går tilbage til tavlen) */
+  stopAll() {
+    for (const a of Object.values(this.players)) { try { a.pause(); a.loop = false; } catch (e) {} }
+    this.live.forEach(h => h.stop()); this.live = [];
+  },
+  isPlaying(slot) { const a = this.players[slot]; return !!(a && a.dataset.k === 'real' && !a.paused); },
   synth: {
+    /* Original titelmelodi (egen komposition) — én gennemspilning, der looper */
+    title({ duration = 16 } = {}) {
+      const c = this.ctx, bus = c.createGain(); bus.connect(this.master);
+      const beat = .5, t0 = c.currentTime + .05, end = t0 + duration;
+      const MEL = [[67,.5],[72,.5],[76,1],[79,1.5],[76,.5], [77,1],[76,.5],[74,.5],[72,2],
+        [69,.5],[72,.5],[77,1],[81,1.5],[79,.5], [77,.5],[76,.5],[74,.5],[76,.5],[79,2],
+        [67,.5],[72,.5],[76,1],[79,1.5],[84,.5], [83,1],[81,.5],[79,.5],[77,2],
+        [76,.5],[77,.5],[79,1],[81,.5],[79,.5],[77,.5],[74,.5], [72,3],[0,1]];
+      const BASS = [48,41,41,43,48,43,43,48];
+      let t = t0;
+      for (const [m,b] of MEL) {
+        const d = b * beat; if (t >= end) break;
+        if (m) { this.tone(this.hz(m), t, d*.9, {type:'sawtooth', vol:.05, attack:.02, release:.08, dest:bus});
+                 this.tone(this.hz(m), t, d*.9, {type:'triangle', vol:.09, attack:.01, release:.08, dest:bus});
+                 this.tone(this.hz(m-12), t, d*.9, {type:'triangle', vol:.04, release:.08, dest:bus}); }
+        t += d;
+      }
+      BASS.forEach((r, bar) => { for (let k=0;k<4;k++) {
+        const bt = t0 + (bar*4 + k) * beat; if (bt >= end) return;
+        if (bar === 7 && k > 0) return;
+        this.tone(this.hz(k % 2 ? r + 7 : r), bt, bar === 7 ? beat*3 : beat*.85, {type:'triangle', vol:.15, release:.1, dest:bus});
+        this.hiss(bt, k % 2 ? .12 : .05, {vol: k % 2 ? .05 : .03, freq: k % 2 ? 2500 : 7000, dest:bus});
+      }});
+      return { stop: () => { try { bus.disconnect(); } catch (e) {} } };
+    },
     intro() {
       const t = this.ctx.currentTime + .02;
       [60,64,67,72,76,79,84].forEach((m,i) => this.tone(this.hz(m), t + i*.07, .35, {type:'triangle', vol:.14}));
@@ -742,6 +782,7 @@ let cur = null; // { id, revealed, timer, music, ddStage }
 function openQuestion(id, tileEl) {
   const f = findQ(id); if (!f) return;
   const { cat, q:x } = f;
+  stopTimer(false); Sound.stopAll();
   state.progress.used[id] = true; save();
   cur = { id, revealed:false, timer:null, music:null, ddStage: !!x.dd };
   const card = $('#qCard');
@@ -815,7 +856,7 @@ function renderAward() {
   });
 }
 function closeQuestion() {
-  stopTimer(false); cur = null; $('#qOverlay').hidden = true; renderBoard(); renderScores();
+  stopTimer(false); Sound.stopAll(); cur = null; $('#qOverlay').hidden = true; renderBoard(); renderScores();
 }
 
 /* ---------- Nedtælling ---------- */
@@ -1013,7 +1054,7 @@ function edSound(p) {
     'Har du selv en lydfil, du må bruge (fx en købt/licenseret version af den kendte tænkemelodi), kan du uploade den nedenfor; den gemmes kun i din egen browser.'));
   p.append(el('h3', {}, 'Generelt'),
     el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
-      check(s, 'enabled', 'Lyd slået til', () => renderHeader()), check(s, 'music', 'Spil tænkemusik under nedtællingen')),
+      check(s, 'enabled', 'Lyd slået til', () => renderHeader()), check(s, 'music', 'Spil tænkemusik under nedtællingen'), check(s, 'titleMusic', 'Spil titelmelodi på startskærmen')),
     el('div', {class:'row'}, field('Lydstyrke', el('input', {type:'range', min:0, max:1, step:.05, value:s.volume, oninput: e => { Sound.setVolume(Number(e.target.value)); save(); }}))),
     el('div', {class:'row'}, el('button', {class:'btn acc', onclick: () => {
       Sound.unlock(); const was = s.enabled; s.enabled = true; Sound.play('correct'); s.enabled = was;
@@ -1090,7 +1131,22 @@ function edFile(p) {
 /* =====================================================================
    OPSTART & GENVEJE
    ===================================================================== */
-$('#btnStart').onclick = () => { Sound.unlock(); $('#splash').hidden = true; renderBoard(true); Sound.play('intro'); };
+function updateTitleBtn() { $('#btnTitle').textContent = Sound.isPlaying('title') ? '■ Stop titelmelodi' : '♪ Spil titelmelodi'; }
+function playTitle(quiet=false) {
+  if (!state.config.sound.titleMusic || $('#splash').hidden) return;
+  Sound.play('title', { quiet, duration: Sound.durations.title - .3 });
+  setTimeout(updateTitleBtn, 300);
+}
+function showSplash() { stopTimer(false); Sound.stopAll(); $('#splash').hidden = false; playTitle(); updateTitleBtn(); }
+$('#btnStart').onclick = () => { Sound.unlock(); Sound.stopAll(); $('#splash').hidden = true; renderBoard(true); Sound.play('intro'); };
+$('#btnTitle').onclick = () => {
+  Sound.unlock();
+  if (Sound.isPlaying('title')) { Sound.stopAll(); updateTitleBtn(); return; }
+  const was = state.config.sound.titleMusic; state.config.sound.titleMusic = true; playTitle(); state.config.sound.titleMusic = was;
+};
+// Klik et vilkårligt sted på startskærmen starter titelmelodien (Safari kræver et klik før lyd)
+$('#splash').addEventListener('pointerup', e => { if (e.target.closest('button')) return; if (!Sound.isPlaying('title')) playTitle(); });
+$('#btnHome').onclick = () => { Sound.unlock(); showSplash(); };
 $('#btnEdit').onclick = openEditor;
 $('#btnEditDone').onclick = closeEditor;
 $('#editor').addEventListener('click', e => { if (e.target.id === 'editor') closeEditor(); });
@@ -1112,8 +1168,8 @@ document.addEventListener('keydown', e => {
 
 ['pointerdown','touchend','keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { capture:true, passive:true }));
 renderAll();
-Sound.loadCustom();
-Sound.prerender(); // kræver ikke klik — så er lydfilerne klar, når spillet starter
+// Forbered lydfilerne (kræver ikke klik) og prøv at starte titelmelodien — Safari venter ofte på første klik
+Sound.loadCustom().then(() => Sound.prerender()).then(() => { if (!Sound.unlocked) playTitle(true); });
 </script>
 </body>
 </html>
