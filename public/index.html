@@ -42,9 +42,9 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .board{height:100%;display:grid;gap:clamp(3px,.5vw,8px);background:var(--board-gap);padding:clamp(3px,.5vw,8px);border-radius:calc(var(--radius) + 4px)}
 .cell{border:none;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;min-height:0;min-width:0;overflow:hidden}
 .cat{background:var(--cat-bg);color:var(--cat-text);font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.7rem,1.6vw,1.5rem);line-height:1.1;letter-spacing:.02em;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);word-break:break-word}
-.tile{background:linear-gradient(160deg,var(--tile-bg),var(--tile-bg2));color:var(--value);font-family:var(--heading-font);font-size:clamp(1rem,3.4vw,3.2rem);text-shadow:2px 3px 0 rgba(0,0,0,.45);transition:transform .12s, filter .12s}
+.tile{background:linear-gradient(160deg,var(--tile-bg),var(--tile-bg2));color:var(--value);font-family:var(--heading-font);font-size:clamp(1rem,3.4vw,3.2rem);transition:transform .12s, filter .12s}
 .tile:hover:not(.used){transform:scale(1.03);filter:brightness(1.18)}
-.tile.used{cursor:default;color:transparent;text-shadow:none;filter:saturate(.6) brightness(.75)}
+.tile.used{cursor:default;color:transparent;filter:saturate(.6) brightness(.75)}
 .tile.empty{cursor:default;opacity:.35}
 .board.filling .tile{animation:pop .35s both}
 @keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
@@ -60,7 +60,7 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 
 /* ---------- Splash ---------- */
 .splash{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:16px;background:var(--page-bg) var(--bg-image) center/cover no-repeat}
-.splash h2{font-family:var(--heading-font);font-weight:400;text-transform:var(--case);font-size:clamp(2.2rem,8vw,6rem);margin:0;color:var(--value);text-shadow:4px 5px 0 rgba(0,0,0,.45);line-height:1}
+.splash h2{font-family:var(--heading-font);font-weight:400;text-transform:var(--case);font-size:clamp(2.2rem,8vw,6rem);margin:0;color:var(--value);line-height:1}
 .splash p{margin:0;font-size:clamp(1rem,2vw,1.4rem);opacity:.85}
 .splash img{max-height:22vh;max-width:60vw}
 .bigbtn{background:var(--value);color:#111;border:none;border-radius:999px;padding:14px 34px;font-size:1.2rem;font-weight:700;box-shadow:0 6px 0 rgba(0,0,0,.35)}
@@ -73,11 +73,11 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .qmeta{display:flex;justify-content:space-between;gap:10px;font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.9rem,1.6vw,1.4rem);opacity:.9}
 .qmeta .v{color:var(--value)}
 .qbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vh,24px);text-align:center;padding:12px 0;min-height:0}
-.qtext{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(1.5rem,4.4vw,4.2rem);line-height:1.12;white-space:pre-line;text-shadow:3px 4px 0 rgba(0,0,0,.4);max-width:1400px;overflow-wrap:anywhere}
+.qtext{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(1.5rem,4.4vw,4.2rem);line-height:1.12;white-space:pre-line;max-width:1400px;overflow-wrap:anywhere}
 .qimg{max-width:min(90%,800px);max-height:36vh;border-radius:var(--radius);object-fit:contain}
-.atext{font-family:var(--heading-font);text-transform:var(--case);color:var(--a-text);font-size:clamp(1.3rem,3.6vw,3.4rem);line-height:1.12;white-space:pre-line;text-shadow:3px 4px 0 rgba(0,0,0,.4);animation:pop .3s both;overflow-wrap:anywhere}
+.atext{font-family:var(--heading-font);text-transform:var(--case);color:var(--a-text);font-size:clamp(1.3rem,3.6vw,3.4rem);line-height:1.12;white-space:pre-line;animation:pop .3s both;overflow-wrap:anywhere}
 .atext small{display:block;font-size:.45em;opacity:.8;color:var(--q-text);margin-bottom:.3em}
-.dd{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(2.4rem,9vw,8rem);color:var(--value);text-shadow:5px 6px 0 rgba(0,0,0,.45);animation:spin .9s cubic-bezier(.2,.9,.3,1.1) both;line-height:1}
+.dd{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(2.4rem,9vw,8rem);color:var(--value);animation:spin .9s cubic-bezier(.2,.9,.3,1.1) both;line-height:1}
 @keyframes spin{from{transform:rotate(-540deg) scale(.1)}to{transform:none}}
 .wager{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;font-size:1.1rem}
 .wager input,.wager select{font:inherit;padding:8px 10px;border-radius:8px;border:none;max-width:200px}
@@ -372,6 +372,7 @@ const fmt = v => `${state.config.rules.valuePrefix||''}${v}${state.config.rules.
    LYD — syntetiseret med Web Audio (ingen filer nødvendige).
    Hver lyd kan erstattes af din egen lydfil under "Lyd & musik".
    ===================================================================== */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const SOUND_SLOTS = {
   intro:   { name:'Intro / tavlen fyldes', desc:'Når spillet startes eller nulstilles' },
   open:    { name:'Vælg felt', desc:'Når et spørgsmål åbnes' },
@@ -418,19 +419,42 @@ const AudioDB = {
 const Sound = {
   ctx:null, master:null, noise:null, custom:{}, // custom[slot] = {url, name}
   get cfg() { return state.config.sound; },
+  unlocked:false, warned:false,
+  /* Kaldes ved første klik/tryk: låser lyden op (især på iPhone/iPad og Safari) */
+  unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    this.init();
+    if (!this.unlocked) {
+      this.unlocked = true;
+      // En lydløs <audio> får iOS til at spille lyd, selvom Lydløs-knappen er slået til
+      try { const a = new Audio(SILENT_WAV); a.setAttribute('playsinline',''); a.play().catch(()=>{}); } catch (e) {}
+      // Spil en tom buffer for at "vække" Web Audio i ældre Safari
+      try { const c = this.ctx, src = c.createBufferSource(); src.buffer = c.createBuffer(1, 1, 22050); src.connect(c.destination); src.start(0); } catch (e) {}
+    }
+  },
+  warn(msg) { if (this.warned) return; this.warned = true; toast(msg); setTimeout(() => this.warned = false, 6000); },
   init() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     if (!this.ctx) {
-      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
-      this.ctx = new AC(); this.master = this.ctx.createGain();
-      this.master.gain.value = this.cfg.volume; this.master.connect(this.ctx.destination);
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { this.warn('Din browser understøtter ikke lyd (Web Audio).'); return null; }
+      try { this.ctx = new AC(); } catch (e) { this.warn('Browseren tillader ikke lyd her: ' + e.message); return null; }
+      const comp = this.ctx.createDynamicsCompressor();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.cfg.volume * 1.6; this.master.connect(comp); comp.connect(this.ctx.destination);
       const len = this.ctx.sampleRate; const b = this.ctx.createBuffer(1, len, len); const d = b.getChannelData(0);
       for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
       this.noise = b;
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state !== 'running') {
+      const r = this.ctx.resume && this.ctx.resume();
+      if (r && r.then) r.then(() => {}, () => {});
+      setTimeout(() => { if (this.ctx && this.ctx.state !== 'running')
+        this.warn('Lyden er blokeret af browseren. Klik et sted på siden, skru op, og tjek at Lydløs ikke er slået til.'); }, 600);
+    }
     return this.ctx;
   },
-  setVolume(v) { this.cfg.volume = v; if (this.master) this.master.gain.value = v; },
+  setVolume(v) { this.cfg.volume = v; if (this.master) this.master.gain.value = v * 1.6; },
   hz: m => 440 * Math.pow(2, (m - 69) / 12),
   tone(f, t, d, o={}) {
     const c = this.ctx, osc = c.createOscillator(), g = c.createGain();
@@ -457,8 +481,15 @@ const Sound = {
     if (slot === 'think' && !this.cfg.music) return null;
     const cu = this.custom[slot];
     if (cu) {
-      const a = new Audio(cu.url); a.volume = this.cfg.volume;
-      a.play().catch(()=>{});
+      const a = new Audio(); a.setAttribute('playsinline',''); a.preload = 'auto';
+      a.src = cu.url; a.volume = Math.min(1, this.cfg.volume);
+      if (slot === 'think') a.loop = true;
+      a.onerror = () => this.warn(`Filen "${cu.name}" kan ikke afspilles i denne browser. Prøv en .mp3-fil.`);
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(err => {
+        if (err && err.name === 'NotAllowedError') this.warn('Browseren blokerede lyden. Klik på siden og prøv igen.');
+        else this.warn(`Lydfilen "${cu.name}" kunne ikke afspilles (${err && err.name || 'ukendt fejl'}). Prøv en .mp3-fil.`);
+      });
       return { stop(fade=true){ if (!fade) { a.pause(); return; }
         const v0 = a.volume; let i = 0; const iv = setInterval(() => { i++; a.volume = Math.max(0, v0*(1-i/8)); if (i>=8){ clearInterval(iv); a.pause(); } }, 30); } };
     }
@@ -929,7 +960,13 @@ function edSound(p) {
     'Har du selv en lydfil, du må bruge (fx en købt/licenseret version af den kendte tænkemelodi), kan du uploade den nedenfor; den gemmes kun i din egen browser.'));
   p.append(el('h3', {}, 'Generelt'),
     el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
-      check(s, 'enabled', 'Lyd slået til'), check(s, 'music', 'Spil tænkemusik under nedtællingen')),
+      check(s, 'enabled', 'Lyd slået til', () => renderHeader()), check(s, 'music', 'Spil tænkemusik under nedtællingen')),
+    el('div', {class:'row'}, el('button', {class:'btn acc', onclick: () => {
+      Sound.unlock(); const was = s.enabled; s.enabled = true; Sound.play('correct'); s.enabled = was;
+      setTimeout(() => toast(Sound.ctx && Sound.ctx.state === 'running'
+        ? 'Hørte du et "ding"? Ellers: skru op, og tjek Lydløs-knappen på iPhone/iPad.'
+        : 'Browseren blokerer lyden på denne side.'), 400);
+    }}, '🔈 Test lyd')),
     el('div', {class:'row'}, field('Lydstyrke', el('input', {type:'range', min:0, max:1, step:.05, value:s.volume, oninput: e => { Sound.setVolume(Number(e.target.value)); save(); }}))));
   p.append(el('h3', {}, 'Lydeffekter'));
   let preview = null;
@@ -991,7 +1028,7 @@ function edFile(p) {
 /* =====================================================================
    OPSTART & GENVEJE
    ===================================================================== */
-$('#btnStart').onclick = () => { Sound.init(); $('#splash').hidden = true; renderBoard(true); Sound.play('intro'); };
+$('#btnStart').onclick = () => { Sound.unlock(); $('#splash').hidden = true; renderBoard(true); Sound.play('intro'); };
 $('#btnEdit').onclick = openEditor;
 $('#btnEditDone').onclick = closeEditor;
 $('#editor').addEventListener('click', e => { if (e.target.id === 'editor') closeEditor(); });
@@ -1011,6 +1048,7 @@ document.addEventListener('keydown', e => {
   else if (e.key.toLowerCase() === 't') startTimer();
 });
 
+['pointerdown','touchend','keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { capture:true, passive:true }));
 renderAll();
 Sound.loadCustom();
 </script>
