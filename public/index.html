@@ -38,7 +38,10 @@ button{font:inherit;cursor:pointer}
 .tbtn.primary{background:var(--value);color:#111;border-color:transparent;font-weight:600}
 /* Knapperne øverst til højre: uden ramme og baggrund */
 .actions .tbtn{background:none;border:none;backdrop-filter:none;color:inherit;opacity:.85}
-.actions .tbtn:hover{background:none;opacity:1;text-decoration:underline;text-underline-offset:4px}
+.actions{gap:2px;align-items:center}
+.actions .tbtn{display:flex;align-items:center;justify-content:center;padding:7px}
+.actions .tbtn svg{display:block}
+.actions .tbtn:hover{background:none;opacity:1;transform:scale(1.12)}
 .actions .tbtn.primary{color:var(--value);font-weight:600}
 
 /* ---------- Board ---------- */
@@ -177,11 +180,11 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
     <div><h1 id="gameTitle"></h1><p id="gameSubtitle"></p></div>
   </div>
   <div class="actions">
-    <button class="tbtn" id="btnSound" title="Lyd til/fra">🔊</button>
-    <button class="tbtn" id="btnFull" title="Fuld skærm">⛶</button>
-    <button class="tbtn" id="btnHome" title="Vis startskærmen med titelmelodi">⌂ Start</button>
-    <button class="tbtn" id="btnNew" title="Nulstil point og tavle">↺ Nyt spil</button>
-    <button class="tbtn primary" id="btnEdit">✎ Tilpas</button>
+    <button class="tbtn" id="btnSound" title="Lyd til/fra" aria-label="Lyd til/fra"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    <button class="tbtn" id="btnFull" title="Fuld skærm" aria-label="Fuld skærm"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <button class="tbtn" id="btnHome" title="Startskærm" aria-label="Startskærm"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></button>
+    <button class="tbtn" id="btnNew" title="Nyt spil (nulstil point og tavle)" aria-label="Nyt spil"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button class="tbtn primary" id="btnEdit" title="Tilpas quizzen" aria-label="Tilpas quizzen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
   </div>
 </header>
 
@@ -236,7 +239,9 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '7';
+const APP_VERSION = '8';
+const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="m16 9 6 6"/><path d="m22 9-6 6"/></svg>';
 const STORE_KEY = 'quiztavle.v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -745,7 +750,8 @@ function renderHeader() {
   $('#gameSubtitle').hidden = !c.subtitle;
   for (const id of ['#logo', '#splashLogo']) { const im = $(id); im.hidden = !c.logo; if (c.logo) im.src = c.logo; }
   $('#splashTitle').textContent = c.title; $('#splashSub').textContent = c.subtitle;
-  $('#btnSound').textContent = c.sound.enabled ? '🔊' : '🔇';
+  $('#btnSound').innerHTML = c.sound.enabled ? ICON_SOUND_ON : ICON_SOUND_OFF;
+  $('#btnSound').title = c.sound.enabled ? 'Lyd er slået til — klik for at slå fra' : 'Lyd er slået fra — klik for at slå til';
   document.title = c.title || 'Quiz-tavle';
 }
 function renderBoard(animate=false) {
