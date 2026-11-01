@@ -21,9 +21,13 @@ Railway bygger automatisk fra dette repo (Node: `npm install` + `npm start`).
 Serveren lytter på den port, Railway giver i `PORT`. Lav et offentligt link
 under **Settings → Networking → Generate Domain**.
 
-## Gør dine egne spørgsmål til standard for alle
+## Del en quiz
 
-Ændringer i editoren gemmes kun i din egen browser. Vil du have, at alle der
-åbner linket ser din quiz: eksportér den som `.json` og importér den på den
-computer, der styrer spillet — eller bed om at få eksempel-quizzen i
-`public/index.html` skiftet ud med dine spørgsmål.
+Ændringer i editoren gemmes i den browser, du bruger. For at dele en quiz:
+**✎ Tilpas → Gem & del → 🔗 Lav delingslink**. Linket indeholder hele quizzen
+(spørgsmål, udseende, hold og regler) og kopieres automatisk. Den, der åbner
+linket, får quizzen indlæst i sin browser.
+
+Uploadede billeder og egne lydfiler kommer ikke med i linket (brug billeder
+som link `https://…`, hvis de skal med). Du kan også eksportere/importere
+quizzen som `.json`-fil.
