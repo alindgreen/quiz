@@ -42,8 +42,12 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .board{height:100%;display:grid;gap:clamp(3px,.5vw,8px);background:var(--board-gap);padding:clamp(3px,.5vw,8px);border-radius:calc(var(--radius) + 4px)}
 .cell{border:none;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;min-height:0;min-width:0;overflow:hidden}
 .cat{background:var(--cat-bg);color:var(--cat-text);font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.7rem,1.6vw,1.5rem);line-height:1.1;letter-spacing:.02em;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);word-break:break-word}
-.tile{background:linear-gradient(160deg,var(--tile-bg),var(--tile-bg2));color:var(--value);font-family:var(--heading-font);font-size:clamp(1rem,3.4vw,3.2rem);transition:transform .12s, filter .12s}
-.tile:hover:not(.used){transform:scale(1.03);filter:brightness(1.18)}
+.tile{position:relative;background:linear-gradient(160deg,var(--tile-bg),var(--tile-bg2));color:var(--value);font-family:var(--heading-font);font-size:clamp(1rem,3.4vw,3.2rem);transition:transform .12s}
+/* Hover: feltet lyser op og vokser lidt — skriften beholder sin farve */
+.tile::before{content:'';position:absolute;inset:0;border-radius:inherit;background:#fff;opacity:0;transition:opacity .12s;pointer-events:none}
+.tile:hover:not(.used){transform:scale(1.03)}
+.tile:hover:not(.used)::before{opacity:.14}
+.tile .v{position:relative}
 .tile.used{cursor:default;color:transparent;filter:saturate(.6) brightness(.75)}
 .tile.empty{cursor:default;opacity:.35}
 .board.filling .tile{animation:pop .35s both}
@@ -62,6 +66,10 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .splash{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:16px;background:var(--page-bg) var(--bg-image) center/cover no-repeat}
 .splash h2{font-family:var(--heading-font);font-weight:400;text-transform:var(--case);font-size:clamp(2.2rem,8vw,6rem);margin:0;color:var(--value);line-height:1}
 .splash p{margin:0;font-size:clamp(1rem,2vw,1.4rem);opacity:.85}
+.note{width:64px;height:64px;border-radius:50%;border:2px solid var(--value);background:transparent;color:var(--value);font-size:2rem;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.note:hover{background:rgba(255,255,255,.1)}
+.note.on{animation:beat 1s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 .splash img{max-height:22vh;max-width:60vw}
 .bigbtn{background:var(--value);color:#111;border:none;border-radius:999px;padding:14px 34px;font-size:1.2rem;font-weight:700;box-shadow:0 6px 0 rgba(0,0,0,.35)}
 .bigbtn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.35)}
@@ -179,7 +187,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
   <h2 id="splashTitle"></h2>
   <p id="splashSub"></p>
   <button class="bigbtn" id="btnStart">▶ Start spillet</button>
-  <button class="tbtn" id="btnTitle">♪ Spil titelmelodi</button>
+  <button class="note" id="btnTitle" title="Spil titelmelodi" aria-label="Spil titelmelodi">♪</button>
 </div>
 
 <div id="qOverlay" class="overlay" hidden>
@@ -222,7 +230,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '5';
+const APP_VERSION = '6';
 const STORE_KEY = 'quiztavle.v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -747,7 +755,7 @@ function renderBoard(animate=false) {
     if (!x) { board.append(el('div', {class:'cell tile empty'})); return; }
     const used = !!state.progress.used[x.id];
     const b = el('button', { class:'cell tile' + (used ? ' used' : ''), 'aria-label':`${c.name} for ${fmt(x.value)}`,
-      onclick: e => { if (!state.progress.used[x.id]) openQuestion(x.id, e.currentTarget); } }, fmt(x.value));
+      onclick: e => { if (!state.progress.used[x.id]) openQuestion(x.id, e.currentTarget); } }, el('span', {class:'v'}, fmt(x.value)));
     board.append(b); tiles.push(b);
   });
   board.classList.toggle('filling', animate);
@@ -1131,7 +1139,8 @@ function edFile(p) {
 /* =====================================================================
    OPSTART & GENVEJE
    ===================================================================== */
-function updateTitleBtn() { $('#btnTitle').textContent = Sound.isPlaying('title') ? '■ Stop titelmelodi' : '♪ Spil titelmelodi'; }
+function updateTitleBtn() { const on = Sound.isPlaying('title'), b = $('#btnTitle');
+  b.classList.toggle('on', on); b.title = on ? 'Stop titelmelodi' : 'Spil titelmelodi'; b.setAttribute('aria-label', b.title); }
 function playTitle(quiet=false) {
   if (!state.config.sound.titleMusic || $('#splash').hidden) return;
   Sound.play('title', { quiet, duration: Sound.durations.title - .3 });
