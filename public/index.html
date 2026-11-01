@@ -220,6 +220,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
+const APP_VERSION = '4';
 const STORE_KEY = 'quiztavle.v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -373,6 +374,14 @@ const fmt = v => `${state.config.rules.valuePrefix||''}${v}${state.config.rules.
    Hver lyd kan erstattes af din egen lydfil under "Lyd & musik".
    ===================================================================== */
 const SILENT_WAV = 'data:audio/wav;base64,UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+function wavBlob(buf) {
+  const d = buf.getChannelData(0), n = d.length, sr = buf.sampleRate, ab = new ArrayBuffer(44 + n * 2), v = new DataView(ab);
+  const w = (o, str) => { for (let i=0;i<str.length;i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4, 36 + n*2, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,n*2,true);
+  for (let i=0;i<n;i++) { const x = Math.max(-1, Math.min(1, d[i])); v.setInt16(44 + i*2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+  return new Blob([ab], { type:'audio/wav' });
+}
 const SOUND_SLOTS = {
   intro:   { name:'Intro / tavlen fyldes', desc:'Når spillet startes eller nulstilles' },
   open:    { name:'Vælg felt', desc:'Når et spørgsmål åbnes' },
@@ -419,42 +428,90 @@ const AudioDB = {
 const Sound = {
   ctx:null, master:null, noise:null, custom:{}, // custom[slot] = {url, name}
   get cfg() { return state.config.sound; },
-  unlocked:false, warned:false,
+  unlocked:false, warned:false, players:{}, rendered:{}, rendering:{}, log:[],
+  note(msg) { this.log.unshift(new Date().toLocaleTimeString('da-DK') + '  ' + msg); this.log.length = Math.min(this.log.length, 12);
+    if (!$('#editor').hidden && tab === 'sound') { const d = $('#sndlog'); if (d) d.textContent = this.log.join('\n'); } },
+  /* Én fast <audio> pr. lyd. De "låses op" ved første klik, så de også må spille
+     senere uden klik (fx når tiden løber ud) — det kræver Safari/iPhone. */
+  player(slot) {
+    let a = this.players[slot];
+    if (!a) { a = new Audio(); a.setAttribute('playsinline', ''); a.setAttribute('webkit-playsinline', ''); a.preload = 'auto'; this.players[slot] = a; }
+    return a;
+  },
   /* Kaldes ved første klik/tryk: låser lyden op (især på iPhone/iPad og Safari) */
   unlock() {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     this.init();
-    if (!this.unlocked) {
-      this.unlocked = true;
-      // En lydløs <audio> får iOS til at spille lyd, selvom Lydløs-knappen er slået til
-      try { const a = new Audio(SILENT_WAV); a.setAttribute('playsinline',''); a.play().catch(()=>{}); } catch (e) {}
-      // Spil en tom buffer for at "vække" Web Audio i ældre Safari
-      try { const c = this.ctx, src = c.createBufferSource(); src.buffer = c.createBuffer(1, 1, 22050); src.connect(c.destination); src.start(0); } catch (e) {}
+    if (this.unlocked) return;
+    this.unlocked = true;
+    for (const slot of Object.keys(SOUND_SLOTS)) {
+      const a = this.player(slot);
+      if (a.dataset.k) continue;
+      a.dataset.k = 'silent'; a.src = SILENT_WAV;
+      try { const pr = a.play(); if (pr && pr.then) pr.then(() => { if (a.dataset.k === 'silent') a.pause(); }, () => {}); } catch (e) {}
     }
+    try { const c = this.ctx, src = c.createBufferSource(); src.buffer = c.createBuffer(1, 1, 22050); src.connect(c.destination); src.start(0); } catch (e) {}
   },
-  warn(msg) { if (this.warned) return; this.warned = true; toast(msg); setTimeout(() => this.warned = false, 6000); },
+  warn(msg) { this.note('⚠ ' + msg); if (this.warned) return; this.warned = true; toast(msg); setTimeout(() => this.warned = false, 6000); },
   init() {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { this.warn('Din browser understøtter ikke lyd (Web Audio).'); return null; }
-      try { this.ctx = new AC(); } catch (e) { this.warn('Browseren tillader ikke lyd her: ' + e.message); return null; }
+      if (!AC) { this.note('Web Audio findes ikke i denne browser'); return null; }
+      try { this.ctx = new AC(); } catch (e) { this.note('Web Audio fejl: ' + e.message); return null; }
       const comp = this.ctx.createDynamicsCompressor();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.cfg.volume * 1.6; this.master.connect(comp); comp.connect(this.ctx.destination);
-      const len = this.ctx.sampleRate; const b = this.ctx.createBuffer(1, len, len); const d = b.getChannelData(0);
-      for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
-      this.noise = b;
+      this.noise = this.makeNoise(this.ctx);
     }
-    if (this.ctx.state !== 'running') {
-      const r = this.ctx.resume && this.ctx.resume();
-      if (r && r.then) r.then(() => {}, () => {});
-      setTimeout(() => { if (this.ctx && this.ctx.state !== 'running')
-        this.warn('Lyden er blokeret af browseren. Klik et sted på siden, skru op, og tjek at Lydløs ikke er slået til.'); }, 600);
-    }
+    if (this.ctx.state !== 'running') { try { const r = this.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
     return this.ctx;
   },
-  setVolume(v) { this.cfg.volume = v; if (this.master) this.master.gain.value = v * 1.6; },
+  makeNoise(c) {
+    const len = c.sampleRate; const b = c.createBuffer(1, len, c.sampleRate); const d = b.getChannelData(0);
+    for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    return b;
+  },
+  /* Optag en indbygget lyd til en WAV-fil, så den kan spilles som en almindelig lydfil */
+  durations: { intro:1.8, open:.8, reveal:1, correct:.9, wrong:.9, timeup:1.1, dd:2.6 },
+  thinkLen() { return Math.max(3, Number(state.config.rules.timer) || 30); },
+  key(slot) { return slot === 'think' ? 'think:' + this.thinkLen() : slot; },
+  async renderSlot(slot) {
+    const k = this.key(slot);
+    if (this.rendered[k] || this.rendering[k]) return;
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return;
+    this.rendering[k] = true;
+    try {
+      const dur = slot === 'think' ? this.thinkLen() + .3 : this.durations[slot], sr = 22050;
+      const off = new OAC(1, Math.ceil(sr * dur), sr);
+      const saved = [this.ctx, this.master, this.noise];
+      this.ctx = off; this.noise = this.makeNoise(off);
+      const comp = off.createDynamicsCompressor(); this.master = off.createGain(); this.master.gain.value = 1.6;
+      this.master.connect(comp); comp.connect(off.destination);
+      try { this.synth[slot].call(this, { duration: dur - .3 }); } finally { [this.ctx, this.master, this.noise] = saved; }
+      const buf = await new Promise((res, rej) => { off.oncomplete = e => res(e.renderedBuffer); const pr = off.startRendering(); if (pr && pr.then) pr.then(res, rej); });
+      this.rendered[k] = URL.createObjectURL(wavBlob(buf));
+    } catch (e) { this.note('Kunne ikke forberede lyden "' + slot + '": ' + e.message); }
+    this.rendering[k] = false;
+  },
+  async prerender() { for (const slot of Object.keys(SOUND_SLOTS)) await this.renderSlot(slot); },
+  /* Spil en lydfil på den faste <audio> for denne lyd */
+  playFile(slot, url, label, loop=false) {
+    const a = this.player(slot);
+    a.dataset.k = 'real'; a.loop = loop; a.muted = false;
+    if (a.getAttribute('src') !== url) a.src = url;
+    try { a.currentTime = 0; } catch (e) {}
+    a.volume = Math.min(1, Math.max(0, this.cfg.volume));
+    a.onerror = () => this.warn(`${label} kan ikke afspilles i denne browser (fejlkode ${a.error && a.error.code}).`);
+    let pr; try { pr = a.play(); } catch (e) { this.warn('Afspilning fejlede: ' + e.message); }
+    if (pr && pr.then) pr.then(() => this.note(`▶ ${SOUND_SLOTS[slot].name}: ${label}`), err => {
+      if (err && err.name === 'AbortError') return;
+      if (err && err.name === 'NotAllowedError') this.warn('Safari/browseren blokerede lyden (NotAllowedError). Tjek Safari → Indstillinger for dette websted → Automatisk afspilning: "Tillad al automatisk afspilning".');
+      else this.warn(`${label} kunne ikke afspilles (${err && err.name || 'ukendt fejl'}).`);
+    });
+    return { stop() { try { a.pause(); a.loop = false; } catch (e) {} } };
+  },
+  setVolume(v) { this.cfg.volume = v; if (this.master) this.master.gain.value = v * 1.6; for (const a of Object.values(this.players)) a.volume = Math.min(1, v); },
   hz: m => 440 * Math.pow(2, (m - 69) / 12),
   tone(f, t, d, o={}) {
     const c = this.ctx, osc = c.createOscillator(), g = c.createGain();
@@ -477,23 +534,16 @@ const Sound = {
   },
   /* Afspil en lyd. Returnerer et håndtag med stop() */
   play(slot, opts={}) {
-    if (!this.cfg.enabled) return null;
+    if (!this.cfg.enabled) { this.note(`(lyd slået fra) ${slot}`); return null; }
     if (slot === 'think' && !this.cfg.music) return null;
     const cu = this.custom[slot];
-    if (cu) {
-      const a = new Audio(); a.setAttribute('playsinline',''); a.preload = 'auto';
-      a.src = cu.url; a.volume = Math.min(1, this.cfg.volume);
-      if (slot === 'think') a.loop = true;
-      a.onerror = () => this.warn(`Filen "${cu.name}" kan ikke afspilles i denne browser. Prøv en .mp3-fil.`);
-      const pr = a.play();
-      if (pr && pr.catch) pr.catch(err => {
-        if (err && err.name === 'NotAllowedError') this.warn('Browseren blokerede lyden. Klik på siden og prøv igen.');
-        else this.warn(`Lydfilen "${cu.name}" kunne ikke afspilles (${err && err.name || 'ukendt fejl'}). Prøv en .mp3-fil.`);
-      });
-      return { stop(fade=true){ if (!fade) { a.pause(); return; }
-        const v0 = a.volume; let i = 0; const iv = setInterval(() => { i++; a.volume = Math.max(0, v0*(1-i/8)); if (i>=8){ clearInterval(iv); a.pause(); } }, 30); } };
-    }
+    if (cu) return this.playFile(slot, cu.url, `din fil "${cu.name}"`, slot === 'think');
+    const k = this.key(slot);
+    if (this.rendered[k] && !opts.live) return this.playFile(slot, this.rendered[k], 'indbygget lyd');
+    // Ikke klar endnu: spil direkte via Web Audio og forbered filen til næste gang
+    this.renderSlot(slot);
     if (!this.init()) return null;
+    this.note(`▶ ${SOUND_SLOTS[slot].name}: Web Audio (${this.ctx.state})`);
     return this.synth[slot] ? this.synth[slot].call(this, opts) : null;
   },
   synth: {
@@ -586,8 +636,10 @@ const Sound = {
     try {
       const all = await AudioDB.all();
       for (const [k, v] of Object.entries(all)) {
-        if (!v || !v.blob) continue;
-        this.custom[k] = { url: URL.createObjectURL(v.blob), name: v.name };
+        if (!v) continue;
+        const blob = v.data ? new Blob([v.data], { type: v.type || 'audio/mpeg' }) : v.blob;
+        if (!blob) continue;
+        this.custom[k] = { url: URL.createObjectURL(blob), name: v.name };
       }
     } catch (e) {}
   },
@@ -703,6 +755,7 @@ function openQuestion(id, tileEl) {
   $('#qVal').textContent = fmt(x.value);
   $('#qOverlay').hidden = false;
   resetTimerUI();
+  Sound.renderSlot('think'); // hvis nedtællingens længde er ændret
   if (x.dd) { Sound.play('dd'); renderDD(x); }
   else { Sound.play('open'); renderQ(x); }
   renderBoard();
@@ -961,13 +1014,17 @@ function edSound(p) {
   p.append(el('h3', {}, 'Generelt'),
     el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
       check(s, 'enabled', 'Lyd slået til', () => renderHeader()), check(s, 'music', 'Spil tænkemusik under nedtællingen')),
+    el('div', {class:'row'}, field('Lydstyrke', el('input', {type:'range', min:0, max:1, step:.05, value:s.volume, oninput: e => { Sound.setVolume(Number(e.target.value)); save(); }}))),
     el('div', {class:'row'}, el('button', {class:'btn acc', onclick: () => {
       Sound.unlock(); const was = s.enabled; s.enabled = true; Sound.play('correct'); s.enabled = was;
       setTimeout(() => toast(Sound.ctx && Sound.ctx.state === 'running'
         ? 'Hørte du et "ding"? Ellers: skru op, og tjek Lydløs-knappen på iPhone/iPad.'
         : 'Browseren blokerer lyden på denne side.'), 400);
     }}, '🔈 Test lyd')),
-    el('div', {class:'row'}, field('Lydstyrke', el('input', {type:'range', min:0, max:1, step:.05, value:s.volume, oninput: e => { Sound.setVolume(Number(e.target.value)); save(); }}))));
+    el('h3', {}, 'Lyd-diagnose'),
+    el('p', {class:'note'}, `Version ${APP_VERSION} · Web Audio: ${Sound.ctx ? Sound.ctx.state : 'ikke startet'} · Forberedte lyde: ${Object.keys(Sound.rendered).length} · Egne filer: ${Object.keys(Sound.custom).length} · Lyd ${s.enabled ? 'slået til' : 'SLÅET FRA'} · Lydstyrke ${Math.round(s.volume*100)} %`),
+    el('pre', {id:'sndlog', style:'background:var(--ui-soft);border:1px solid var(--ui-line);border-radius:8px;padding:10px;font-size:.78rem;white-space:pre-wrap;min-height:60px;margin:0'}, Sound.log.join('\n') || 'Ingen lyde afspillet endnu.'),
+  );
   p.append(el('h3', {}, 'Lydeffekter'));
   let preview = null;
   for (const [slot, info] of Object.entries(SOUND_SLOTS)) {
@@ -984,9 +1041,14 @@ function edSound(p) {
         el('button', {class:'btn sm', onclick: () => { if (preview) { preview.stop(); preview = null; } }}, '■'),
         el('label', {class:'btn sm'}, 'Upload egen…', el('input', {type:'file', accept:'audio/*', hidden:true, onchange: async e => {
           const f = e.target.files[0]; if (!f) return;
-          try { await AudioDB.put(slot, { blob:f, name:f.name }); } catch (err) { toast('Kunne ikke gemme filen i browseren'); }
+          let data;
+          try { data = await f.arrayBuffer(); } catch (err) { toast('Kunne ikke læse filen'); return; }
+          const type = f.type || 'audio/mpeg';
+          try { await AudioDB.put(slot, { data, type, name:f.name }); } catch (err) { toast('Filen virker nu, men kunne ikke gemmes til næste gang (' + (err && err.name) + ')'); }
           if (Sound.custom[slot]) URL.revokeObjectURL(Sound.custom[slot].url);
-          Sound.custom[slot] = { url: URL.createObjectURL(f), name: f.name }; renderEditor(); toast('Lyd gemt');
+          Sound.custom[slot] = { url: URL.createObjectURL(new Blob([data], { type })), name: f.name };
+          Sound.note(`Uploadet "${f.name}" (${type}, ${Math.round(f.size/1024)} KB) til ${SOUND_SLOTS[slot].name}`);
+          renderEditor(); toast('Lyd gemt');
         }})),
         cu && el('button', {class:'btn sm danger', onclick: async () => {
           try { await AudioDB.del(slot); } catch (e) {}
@@ -1051,6 +1113,7 @@ document.addEventListener('keydown', e => {
 ['pointerdown','touchend','keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { capture:true, passive:true }));
 renderAll();
 Sound.loadCustom();
+Sound.prerender(); // kræver ikke klik — så er lydfilerne klar, når spillet starter
 </script>
 </body>
 </html>
