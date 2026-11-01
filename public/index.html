@@ -66,8 +66,8 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .splash{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:16px;background:var(--page-bg) var(--bg-image) center/cover no-repeat}
 .splash h2{font-family:var(--heading-font);font-weight:400;text-transform:var(--case);font-size:clamp(2.2rem,8vw,6rem);margin:0;color:var(--value);line-height:1}
 .splash p{margin:0;font-size:clamp(1rem,2vw,1.4rem);opacity:.85}
-.note{width:64px;height:64px;border-radius:50%;border:2px solid var(--value);background:transparent;color:var(--value);font-size:2rem;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
-.note:hover{background:rgba(255,255,255,.1)}
+.note{border:none;background:none;color:var(--value);font-size:1.6rem;line-height:1;padding:4px 8px}
+.note:hover{opacity:.75}
 .note.on{animation:beat 1s ease-in-out infinite}
 @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 .splash img{max-height:22vh;max-width:60vw}
