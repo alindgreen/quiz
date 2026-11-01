@@ -101,6 +101,8 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .award button{border:none;border-radius:7px;padding:6px 12px;font-weight:700;background:rgba(255,255,255,.15);color:inherit}
 .award button.ok.on{background:#20b26b;color:#fff}
 .award button.no.on{background:#e04848;color:#fff}
+.qcard.compact .lbl,.qcard.compact .hint{display:none}
+.qcard.compact #btnTimer,.qcard.compact #btnClose{min-width:46px;font-size:1.25rem;padding:6px 12px}
 .hint{font-size:.8rem;opacity:.65;text-align:center;margin-top:10px}
 
 /* ---------- Editor (light UI, independent of theme) ---------- */
@@ -196,9 +198,9 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
     <div class="qbody" id="qBody"></div>
     <div class="timer" id="timerWrap"><div class="tbar"><i id="tFill"></i></div><span class="tnum" id="tNum"></span></div>
     <div class="qcontrols" id="qControls">
-      <button class="tbtn" id="btnTimer">⏱ Start nedtælling</button>
+      <button class="tbtn" id="btnTimer" title="Start nedtælling (T)">⏱<span class="lbl"> Start nedtælling</span></button>
       <button class="tbtn primary" id="btnReveal">Vis svar</button>
-      <button class="tbtn" id="btnClose">Tilbage til tavlen</button>
+      <button class="tbtn" id="btnClose" title="Tilbage til tavlen (Esc)">✕<span class="lbl"> Tilbage til tavlen</span></button>
     </div>
     <div class="award" id="award"></div>
     <div class="hint">Mellemrum: vis svar · T: nedtælling · Esc: tilbage til tavlen</div>
@@ -230,7 +232,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 const STORE_KEY = 'quiztavle.v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -315,7 +317,7 @@ function exampleConfig() {
       { id:uid(), name:'Hold 2', color:'#3ec1d3' },
       { id:uid(), name:'Hold 3', color:'#9be15d' },
     ],
-    rules: { timer:30, autoTimer:false, deductWrong:true, answerLabel:'Svar', ddLabel:'Dobbelt op!', valuePrefix:'', valueSuffix:'' },
+    rules: { timer:30, autoTimer:false, showHelp:false, deductWrong:true, answerLabel:'Svar', ddLabel:'Dobbelt op!', valuePrefix:'', valueSuffix:'' },
     sound: { enabled:true, volume:0.8, music:true, titleMusic:true },
     theme: { ...PRESETS.klassisk, bgImage:'' },
   };
@@ -802,6 +804,7 @@ function openQuestion(id, tileEl) {
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
   $('#qCat').textContent = cat.name;
   $('#qVal').textContent = fmt(x.value);
+  card.classList.toggle('compact', !state.config.rules.showHelp);
   $('#qOverlay').hidden = false;
   resetTimerUI();
   Sound.renderSlot('think'); // hvis nedtællingens længde er ændret
@@ -868,10 +871,14 @@ function closeQuestion() {
 }
 
 /* ---------- Nedtælling ---------- */
+function setTimerBtn(running) {
+  const b = $('#btnTimer'); b.replaceChildren(running ? '⏸' : '⏱', el('span', {class:'lbl'}, running ? ' Stop nedtælling' : ' Start nedtælling'));
+  b.title = (running ? 'Stop' : 'Start') + ' nedtælling (T)';
+}
 function resetTimerUI() {
   const s = state.config.rules.timer || 30;
   $('#tFill').style.transition = 'none'; $('#tFill').style.transform = 'scaleX(1)';
-  $('#tNum').textContent = s; $('#btnTimer').textContent = '⏱ Start nedtælling';
+  $('#tNum').textContent = s; setTimerBtn(false);
 }
 function startTimer() {
   if (!cur || cur.ddStage) return;
@@ -882,7 +889,7 @@ function startTimer() {
   fill.style.transition = `transform ${secs}s linear`; fill.style.transform = 'scaleX(0)';
   const start = performance.now();
   cur.music = Sound.play('think', { duration: secs });
-  $('#btnTimer').textContent = '⏸ Stop nedtælling';
+  setTimerBtn(true);
   cur.timer = setInterval(() => {
     const left = Math.max(0, Math.ceil(secs - (performance.now() - start) / 1000));
     $('#tNum').textContent = left;
@@ -895,7 +902,7 @@ function stopTimer(timeUp) {
   if (cur.music) { cur.music.stop(); cur.music = null; }
   const fill = $('#tFill'); const cs = getComputedStyle(fill).transform;
   fill.style.transition = 'none'; fill.style.transform = cs === 'none' ? 'scaleX(1)' : cs;
-  $('#btnTimer').textContent = '⏱ Start nedtælling';
+  setTimerBtn(false);
   if (timeUp) { $('#tNum').textContent = '0'; Sound.play('timeup'); }
 }
 
@@ -1051,7 +1058,8 @@ function edTeams(p) {
       field('Overskrift over svaret', txt(c.rules, 'answerLabel')), field('Tekst ved Dobbelt op-felt', txt(c.rules, 'ddLabel'))),
     el('div', {class:'row', style:'flex-direction:column;align-items:flex-start'},
       check(c.rules, 'deductWrong', 'Træk point fra ved forkert svar'),
-      check(c.rules, 'autoTimer', 'Start nedtællingen automatisk, når et spørgsmål åbnes')));
+      check(c.rules, 'autoTimer', 'Start nedtællingen automatisk, når et spørgsmål åbnes'),
+      check(c.rules, 'showHelp', 'Vis knaptekster og genvejshjælp under spørgsmålene')));
 }
 
 /* --- Lyd --- */
