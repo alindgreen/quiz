@@ -36,6 +36,10 @@ button{font:inherit;cursor:pointer}
 .tbtn{background:rgba(255,255,255,.12);color:inherit;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 12px;font-size:.9rem;backdrop-filter:blur(4px)}
 .tbtn:hover{background:rgba(255,255,255,.22)}
 .tbtn.primary{background:var(--value);color:#111;border-color:transparent;font-weight:600}
+/* Knapperne øverst til højre: uden ramme og baggrund */
+.actions .tbtn{background:none;border:none;backdrop-filter:none;color:inherit;opacity:.85}
+.actions .tbtn:hover{background:none;opacity:1;text-decoration:underline;text-underline-offset:4px}
+.actions .tbtn.primary{color:var(--value);font-weight:600}
 
 /* ---------- Board ---------- */
 main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
