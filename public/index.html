@@ -104,6 +104,14 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .mcopt:hover{transform:translateY(-2px)}
 .mcopt b{flex:0 0 auto;width:1.8em;height:1.8em;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--value);color:#111;font-family:var(--heading-font);font-weight:400}
 .mcopt span{overflow-wrap:anywhere}
+.mcgrid.imgs{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.mcopt.hasimg{flex-direction:column;align-items:stretch;gap:10px;padding:10px}
+.mcopt.hasimg .row{display:flex;align-items:center;gap:10px}
+.mcopt .oimg{width:100%;height:clamp(90px,20vh,240px);object-fit:contain;border-radius:calc(var(--radius) + 2px);background:rgba(128,128,128,.12)}
+.ythost{position:fixed;right:0;bottom:0;width:200px;height:200px;opacity:.01;pointer-events:none;z-index:-1;overflow:hidden}
+.ythost.show{position:relative;right:auto;bottom:auto;opacity:1;pointer-events:auto;z-index:auto;width:min(560px,100%);height:auto;aspect-ratio:16/9;border-radius:calc(var(--radius) + 2px)}
+.ythost.show iframe{width:100%;height:100%;display:block}
+.ytwrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:min(680px,100%)}
 .mcopt.sel{border-color:var(--value);background:color-mix(in srgb, var(--value) 22%, transparent)}
 .mcopt.right{background:#20b26b;border-color:#20b26b;color:#fff;animation:pop .35s both}
 .mcopt.right b{background:#fff}
@@ -211,9 +219,14 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
 .mced{display:flex;flex-direction:column;gap:6px}
 .mced .o{display:flex;align-items:center;gap:6px}
 .mced .o b{width:1.4em;text-align:center;color:var(--ui-text)}
+.mced .o .im{display:flex;align-items:center;gap:4px}
+.mced .o .im input{width:150px;flex:none}
+.mced .o .im img{width:30px;height:30px;object-fit:cover;border-radius:5px;border:1px solid var(--ui-line)}
 .mced .o input[type=text]{flex:1;font:inherit;font-size:.9rem;color:var(--ui-text);border:1px solid var(--ui-line);border-radius:7px;padding:6px 8px;min-width:0}
 .qaud{grid-column:2 / 4;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--ui-muted)}
 .qaud .nm{color:var(--ui-text);font-weight:600;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qaud input[type=url]{flex:1 1 220px;min-width:0;font:inherit;font-size:.88rem;color:var(--ui-text);border:1px solid var(--ui-line);border-radius:7px;padding:5px 8px}
+.qaud .sep{flex-basis:100%;height:0}
 .qaud input[type=number]{width:70px;font:inherit;border:1px solid var(--ui-line);border-radius:7px;padding:4px 6px}
 @media (max-width:640px){.qaud{grid-column:auto}}
 .presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
@@ -386,7 +399,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '24';
+const APP_VERSION = '25';
 const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="m16 9 6 6"/><path d="m22 9-6 6"/></svg>';
 const STORE_KEY = 'quiztavle.v1';
@@ -570,6 +583,49 @@ function wavBlob(buf) {
   for (let i=0;i<n;i++) { const x = Math.max(-1, Math.min(1, d[i])); v.setInt16(44 + i*2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
   return new Blob([ab], { type:'audio/wav' });
 }
+/* Gør uploadede billeder mindre (maks. 900 px), så quizzen er let at dele */
+function readImage(file, max = 900) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(new Error('Kunne ikke læse billedet'));
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = () => res(r.result);
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        if (k === 1 && file.size < 300000) return res(r.result);
+        const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        res(/png|gif|svg/.test(file.type) ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .85));
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+/* YouTube: læs video-id og evt. starttid fra et link */
+function parseYT(url) {
+  const u = String(url || '').trim(); if (!u) return null;
+  const m = /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/))([A-Za-z0-9_-]{11})/.exec(u) || /^([A-Za-z0-9_-]{11})$/.exec(u);
+  if (!m) return null;
+  let start = 0; const t = /[?&#](?:t|start)=([0-9hms]+)/.exec(u);
+  if (t) { const v = t[1]; if (/^\d+$/.test(v)) start = +v; else { const h = /(\d+)h/.exec(v), mi = /(\d+)m/.exec(v), se = /(\d+)s/.exec(v); start = (h ? h[1] * 3600 : 0) + (mi ? mi[1] * 60 : 0) + (se ? +se[1] : 0); } }
+  return { id: m[1], start };
+}
+function loadYTApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (loadYTApi.p) return loadYTApi.p;
+  loadYTApi.p = new Promise((res, rej) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); res(); };
+    const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api';
+    sc.onerror = () => { loadYTApi.p = null; rej(new Error('YouTube kunne ikke indlæses. Tjek internetforbindelsen.')); };
+    document.head.append(sc);
+  });
+  return loadYTApi.p;
+}
+let YTP = null;
+function ytStop() { clearInterval(ytStop.iv); if (YTP) { try { YTP.destroy(); } catch (e) {} YTP = null; } }
 const QAudio = {}; // lyd til enkelte spørgsmål: QAudio[spørgsmåls-id] = { url, name }
 const SOUND_SLOTS = {
   title:   { name:'Titelmelodi', desc:'Spiller på startskærmen, indtil spillet startes' },
@@ -745,6 +801,7 @@ const Sound = {
   },
   /* Stop al lyd med det samme (fx når man går tilbage til tavlen) */
   stopAll() {
+    ytStop();
     for (const a of Object.values(this.players)) { try { a.pause(); a.loop = false; } catch (e) {} }
     this.live.forEach(h => h.stop()); this.live = [];
   },
@@ -1069,9 +1126,54 @@ function renderDD(x) {
 const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4.5" width="4.5" height="15" rx="1"/><rect x="14" y="4.5" width="4.5" height="15" rx="1"/></svg>';
 const ICON_RESTART = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
-const mcOptions = x => (x.options || []).map((o, i) => ({ o: (o || '').trim(), i })).filter(z => z.o);
-const answerOf = x => x.mc ? ((x.options || [])[x.correct || 0] || '') : (x.a || '');
+const mcOptions = x => (x.options || []).map((o, i) => ({ o: (o || '').trim(), img: (x.optImgs || [])[i] || '', i })).filter(z => z.o || z.img);
+const answerOf = x => x.mc ? ((x.options || [])[x.correct || 0] || ((x.optImgs || [])[x.correct || 0] ? 'Billede ' + 'ABCD'[x.correct || 0] : '')) : (x.a || '');
 const fmtTime = t => !isFinite(t) ? '0:00' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function ytPlayer(x) {
+  const info = parseYT(x.yt);
+  if (!info) return el('div', {class:'qmissing'}, '♪ YouTube-linket kan ikke læses.');
+  const start = Number(x.audioStart) || info.start || 0, auto = state.config.rules.autoPlayAudio && state.config.sound.enabled;
+  const btn = el('button', {class:'qplay', title:'Afspil / pause', 'aria-label':'Afspil eller pause', innerHTML: ICON_PLAY});
+  const restart = el('button', {class:'qrestart', title:'Start forfra', 'aria-label':'Start forfra', innerHTML: ICON_RESTART});
+  const fill = el('i'), time = el('span', {class:'qtime'}, '0:00');
+  const prog = el('div', {class:'qprog', title:'Spol'}, fill);
+  const frame = el('div'), host = el('div', {class:'ythost' + (x.ytShow ? ' show' : '')}, frame);
+  const wrap = el('div', {class:'ytwrap'}, host, el('div', {class:'qplayer'}, btn, restart, prog, time));
+  let ready = false, want = false;
+  const playing = () => { const st = YTP && YTP.getPlayerState ? YTP.getPlayerState() : -1; return st === 1 || st === 3; };
+  const sync = () => {
+    if (!ready || !YTP) return; const on = playing();
+    btn.innerHTML = on ? ICON_PAUSE : ICON_PLAY; btn.classList.toggle('on', on);
+    const d = YTP.getDuration ? YTP.getDuration() : 0, t = YTP.getCurrentTime ? YTP.getCurrentTime() : 0;
+    if (d) { fill.style.width = (t / d * 100) + '%'; time.textContent = fmtTime(t) + ' / ' + fmtTime(d); }
+  };
+  btn.onclick = () => {
+    if (!state.config.sound.enabled) { toast('Lyden er slået fra (højttaler-ikonet øverst)'); return; }
+    if (!ready) { want = true; return; }
+    if (playing()) YTP.pauseVideo(); else YTP.playVideo();
+  };
+  restart.onclick = () => { if (ready) { YTP.seekTo(start, true); YTP.playVideo(); } };
+  prog.onclick = e => { if (!ready) return; const d = YTP.getDuration(); if (!d) return; const r = e.currentTarget.getBoundingClientRect(); YTP.seekTo((e.clientX - r.left) / r.width * d, true); };
+  const errText = c => c === 101 || c === 150 ? 'Ejeren af videoen tillader ikke, at den afspilles uden for YouTube. Prøv en anden udgave af sangen (fx en "lyric video" eller "official audio").'
+    : c === 100 ? 'Videoen findes ikke eller er privat.' : c === 2 ? 'YouTube-linket er ugyldigt.' : 'Videoen kunne ikke afspilles (fejl ' + c + ').';
+  ytStop();
+  const qid = x.id;
+  loadYTApi().then(() => {
+    if (!cur || cur.id !== qid) return;
+    YTP = new YT.Player(frame, {
+      videoId: info.id, width: x.ytShow ? 560 : 200, height: x.ytShow ? 315 : 200,
+      playerVars: { start: Math.floor(start), autoplay: auto ? 1 : 0, controls: x.ytShow ? 1 : 0, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, iv_load_policy: 3, origin: location.origin },
+      events: {
+        onReady: e => { ready = true; try { e.target.setVolume(Math.round(Math.min(1, state.config.sound.volume) * 100)); } catch (er) {}
+          if (want || auto) e.target.playVideo(); sync(); },
+        onStateChange: sync,
+        onError: e => wrap.replaceChildren(el('div', {class:'qmissing'}, '♪ ' + errText(e.data))),
+      },
+    });
+    clearInterval(ytStop.iv); ytStop.iv = setInterval(sync, 300);
+  }).catch(err => wrap.replaceChildren(el('div', {class:'qmissing'}, '♪ ' + err.message)));
+  return wrap;
+}
 function audioPlayer(x) {
   const qa = QAudio[x.id];
   if (!qa) return el('div', {class:'qmissing'}, '♪ Lydfilen til dette spørgsmål findes ikke i denne browser.');
@@ -1101,16 +1203,20 @@ function audioPlayer(x) {
 function renderQ(x) {
   const body = $('#qBody'); body.replaceChildren();
   const opts = x.mc ? mcOptions(x) : [];
-  body.append(el('div', {class:'qtext' + (opts.length || x.audio ? ' sm' : '')}, x.q || '(Intet spørgsmål skrevet endnu)'));
+  body.append(el('div', {class:'qtext' + (opts.length || x.audio || x.yt ? ' sm' : '')}, x.q || '(Intet spørgsmål skrevet endnu)'));
   if (x.img) body.append(el('img', {class:'qimg', src:x.img, alt:''}));
-  if (x.audio) body.append(audioPlayer(x));
+  if (x.yt) body.append(ytPlayer(x)); else if (x.audio) body.append(audioPlayer(x));
   if (opts.length) {
-    const grid = el('div', {class:'mcgrid', id:'mcGrid'});
-    opts.forEach(z => grid.append(el('button', {class:'mcopt', 'data-i': z.i, onclick: e => {
-      if (!cur || cur.revealed) return;
-      grid.querySelectorAll('.mcopt').forEach(b => b.classList.remove('sel'));
-      e.currentTarget.classList.add('sel'); cur.mcSel = z.i;
-    }}, el('b', {}, 'ABCD'[z.i]), el('span', {}, z.o))));
+    const withImgs = opts.some(z => z.img);
+    const grid = el('div', {class:'mcgrid' + (withImgs ? ' imgs' : ''), id:'mcGrid'});
+    opts.forEach(z => {
+      const label = [el('b', {}, 'ABCD'[z.i]), z.o ? el('span', {}, z.o) : null];
+      grid.append(el('button', {class:'mcopt' + (withImgs ? ' hasimg' : ''), 'data-i': z.i, onclick: e => {
+        if (!cur || cur.revealed) return;
+        grid.querySelectorAll('.mcopt').forEach(b => b.classList.remove('sel'));
+        e.currentTarget.classList.add('sel'); cur.mcSel = z.i;
+      }}, ...(withImgs ? [z.img ? el('img', {class:'oimg', src:z.img, alt:''}) : el('div', {class:'oimg'}), el('div', {class:'row'}, ...label)] : label)));
+    });
     body.append(grid);
   }
   $('#qControls').hidden = false; $('#timerWrap').hidden = false;
@@ -1271,7 +1377,7 @@ function startTimer() {
   fill.style.transition = `transform ${secs}s linear`; fill.style.transform = 'scaleX(0)';
   const start = performance.now();
   const fq = findQ(cur.id)?.q;
-  cur.music = (fq && fq.audio && QAudio[fq.id]) ? null : Sound.play('think', { duration: secs }); // ingen tænkemusik oven i spørgsmålets egen lyd
+  cur.music = (fq && ((fq.audio && QAudio[fq.id]) || parseYT(fq.yt))) ? null : Sound.play('think', { duration: secs }); // ingen tænkemusik oven i spørgsmålets egen lyd
   setTimerBtn(true);
   cur.timer = setInterval(() => {
     const left = Math.max(0, Math.ceil(secs - (performance.now() - start) / 1000));
@@ -1472,7 +1578,7 @@ function edContent(p) {
         field('Point', txt(x, 'value', {type:'number'})),
         field('Spørgsmål', txt(x, 'q', {area:true, ph:'Skriv spørgsmålet…'})),
         x.mc ? mcEditor(x) : field('Svar', txt(x, 'a', {area:true, ph:'Skriv svaret…'})),
-        el('div', {class:'extra'}, field('Billede (link, valgfrit)', txt(x, 'img', {type:'url', ph:'https://…'})),
+        el('div', {class:'extra'}, qImageEd(x),
           check(x, 'mc', 'Multiple choice', () => { if (x.mc && !x.options) { x.options = [x.a || '', '', '', '']; x.correct = 0; } renderEditor(); }),
           check(x, 'dd', 'Dobbelt op')),
         audioEditor(x)));
@@ -1514,10 +1620,48 @@ function mcEditor(x) {
     x.options.map((o, i) => el('label', {class:'o'},
       el('input', {type:'radio', name:'mc-' + x.id, checked: x.correct === i, title:'Rigtigt svar', onchange: () => { x.correct = i; changed(); }}),
       el('b', {}, 'ABCD'[i]),
-      el('input', {type:'text', value:o, placeholder: i < 2 ? 'Svarmulighed' : 'Valgfri', oninput: e => { x.options[i] = e.target.value; changed(); }}))));
+      el('input', {type:'text', value:o, placeholder: i < 2 ? 'Svarmulighed' : 'Valgfri', oninput: e => { x.options[i] = e.target.value; changed(); }}),
+      optImageEd(x, i))));
+}
+function qImageEd(x) {
+  const v = x.img || '';
+  const set = val => { x.img = val; changed(); renderEditor(); };
+  const up = el('label', {class:'btn sm', title:'Upload billede'}, v ? 'Skift billede' : '🖼 Upload', el('input', {type:'file', accept:'image/*', hidden:true, onchange: async e => {
+    const f = e.target.files[0]; if (!f) return; try { set(await readImage(f, 1400)); } catch (err) { toast(err.message); } }}));
+  return el('div', {class:'fld'}, 'Billede (valgfrit)', el('div', {style:'display:flex;gap:6px;align-items:center'},
+    v ? el('img', {src:v, alt:'', style:'width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid var(--ui-line)'}) : null,
+    v.startsWith('data:') ? el('span', {style:'flex:1;color:var(--ui-text)'}, 'Uploadet billede') : el('input', {type:'url', value:v, placeholder:'Link til billede, https://…', style:'flex:1', onchange: e => set(e.target.value.trim())}),
+    up, v ? el('button', {class:'btn sm danger', onclick: e => { e.preventDefault(); set(''); }}, '✕') : null));
+}
+function optImageEd(x, i) {
+  x.optImgs = x.optImgs || ['', '', '', ''];
+  const v = x.optImgs[i] || '';
+  const set = val => { x.optImgs[i] = val; changed(); renderEditor(); };
+  return el('span', {class:'im'},
+    v ? el('img', {src:v, alt:''}) : null,
+    v && v.startsWith('data:') ? null : el('input', {type:'url', value:v, placeholder:'Billede-link', title:'Link til billede (valgfrit)', onchange: e => set(e.target.value.trim())}),
+    el('label', {class:'btn sm', title:'Upload billede'}, v ? 'Skift' : '🖼', el('input', {type:'file', accept:'image/*', hidden:true, onchange: async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try { set(await readImage(f)); } catch (err) { toast(err.message); }
+    }})),
+    v ? el('button', {class:'btn sm danger', title:'Fjern billede', onclick: e => { e.preventDefault(); set(''); }}, '✕') : null);
 }
 let edPreview = null;
 function audioEditor(x) {
+  const yt = el('div', {class:'qaud'}, '▶ YouTube:',
+    el('input', {type:'url', value: x.yt || '', placeholder:'Indsæt link fra YouTube (sangen starter automatisk)', onchange: e => {
+      const v = e.target.value.trim();
+      if (v && !parseYT(v)) { toast('Det ligner ikke et YouTube-link'); return; }
+      x.yt = v || undefined; if (!v) delete x.ytShow;
+      const info = parseYT(v); if (info && info.start && !x.audioStart) x.audioStart = info.start;
+      changed(); renderEditor(); }}),
+    x.yt ? el('label', {}, 'Start ved ', el('input', {type:'number', min:0, step:1, value: x.audioStart || 0, oninput: e => { x.audioStart = Number(e.target.value) || 0; changed(); }}), ' sek.') : null,
+    x.yt ? check(x, 'ytShow', 'Vis videoen') : null,
+    x.yt ? el('a', {href:'https://www.youtube.com/watch?v=' + (parseYT(x.yt) || {}).id, target:'_blank', rel:'noopener', style:'color:var(--ui-accent)'}, 'Åbn på YouTube') : null);
+  if (x.yt) return el('div', {style:'display:contents'}, yt);
+  return el('div', {style:'display:contents'}, yt, fileAudioEditor(x));
+}
+function fileAudioEditor(x) {
   const qa = QAudio[x.id];
   const upload = el('label', {class:'btn sm'}, qa ? 'Skift sang…' : '♪ Tilføj lyd / sang…', el('input', {type:'file', accept:'audio/*', hidden:true, onchange: async e => {
     const f = e.target.files[0]; if (!f) return;
