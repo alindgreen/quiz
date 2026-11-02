@@ -86,8 +86,13 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .overlay{position:fixed;inset:0;z-index:30;display:flex;padding:clamp(8px,2vw,24px);background:rgba(0,0,0,.6)}
 .qcard{flex:1;display:flex;flex-direction:column;background:linear-gradient(160deg,var(--q-bg),var(--tile-bg2));color:var(--q-text);border-radius:calc(var(--radius) + 6px);padding:clamp(14px,2.5vw,32px);box-shadow:0 20px 60px rgba(0,0,0,.5);animation:zoom .38s cubic-bezier(.2,.9,.3,1.2) both;transform-origin:var(--ox,50%) var(--oy,50%);min-height:0;overflow:auto}
 @keyframes zoom{from{transform:scale(.08);opacity:.4}to{transform:none;opacity:1}}
-.qmeta{display:flex;justify-content:space-between;gap:10px;font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.9rem,1.6vw,1.4rem);opacity:.9}
-.qmeta .v{color:var(--value)}
+.qmeta{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.qinfo{display:flex;flex-direction:column;gap:2px;font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(.9rem,1.6vw,1.4rem);opacity:.9}
+.qinfo .v{color:var(--value)}
+.qclose{border:none;background:none;color:inherit;opacity:.6;padding:4px;margin:-4px -4px 0 0;display:flex}
+.qclose:hover{opacity:1}
+.qclose svg{width:26px;height:26px}
+.qclose .lbl{display:none}
 .qbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vh,24px);text-align:center;padding:12px 0;min-height:0}
 .qtext{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(1.5rem,4.4vw,4.2rem);line-height:1.12;white-space:pre-line;max-width:1400px;overflow-wrap:anywhere}
 .qtext.sm{font-size:clamp(1.3rem,3.2vw,3rem)}
@@ -139,10 +144,14 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .ddquick button{border:none;background:none;color:inherit;opacity:.7;font-size:.9rem;padding:5px 12px;border-radius:999px}
 .ddquick button:hover{opacity:1;background:color-mix(in srgb, var(--q-text) 10%, transparent)}
 .ddquick button.on{opacity:1;color:var(--value)}
-.timer{display:flex;align-items:center;gap:12px;margin:6px 0 10px}
+.timer{display:flex;align-items:flex-start;gap:14px;margin:6px 0 10px}
+.timer .tbar{margin-top:9px}
+.tside{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:4.5em}
+.ticon{border:none;background:none;color:var(--q-text);opacity:.6;padding:4px;display:flex;align-items:center;gap:6px}
+.ticon:hover{opacity:1}
 .tbar{flex:1;height:12px;background:rgba(0,0,0,.35);border-radius:99px;overflow:hidden}
 .tbar i{display:block;height:100%;width:100%;background:var(--value);transform-origin:left;border-radius:99px}
-.tnum{font-family:var(--heading-font);font-size:1.6rem;min-width:2.2em;text-align:right;color:var(--value)}
+.tnum{font-family:var(--heading-font);font-size:1.15rem;line-height:1.2;white-space:nowrap;color:var(--q-text)}
 .qcontrols{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .qcontrols .tbtn{font-size:1rem;padding:9px 16px}
 .award{display:flex;gap:clamp(14px,3vw,36px);flex-wrap:wrap;justify-content:center;margin-top:14px}
@@ -302,13 +311,11 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
 
 <div id="qOverlay" class="overlay" hidden>
   <div class="qcard" id="qCard">
-    <div class="qmeta"><span id="qCat"></span><span class="v" id="qVal"></span></div>
+    <div class="qmeta"><div class="qinfo"><span id="qCat"></span><span class="v" id="qVal"></span></div><button class="qclose" id="btnClose" title="Tilbage til tavlen (Esc)" aria-label="Tilbage til tavlen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg><span class="lbl"> Tilbage til tavlen</span></button></div>
     <div class="qbody" id="qBody"></div>
-    <div class="timer" id="timerWrap"><div class="tbar"><i id="tFill"></i></div><span class="tnum" id="tNum"></span></div>
+    <div class="timer" id="timerWrap"><div class="tbar"><i id="tFill"></i></div><div class="tside"><span class="tnum" id="tNum"></span><button class="ticon" id="btnTimer" title="Start nedtælling (T)" aria-label="Start nedtælling"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5"/><path d="M9.5 3h5"/></svg><span class="lbl"> Start nedtælling</span></button></div></div>
     <div class="qcontrols" id="qControls">
-      <button class="tbtn icon" id="btnTimer" title="Start nedtælling (T)" aria-label="Start nedtælling"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.5"/><path d="M9.5 3h5"/></svg><span class="lbl"> Start nedtælling</span></button>
       <button class="tbtn primary" id="btnReveal">Vis svar</button>
-      <button class="tbtn icon" id="btnClose" title="Tilbage til tavlen (Esc)" aria-label="Tilbage til tavlen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg><span class="lbl"> Tilbage til tavlen</span></button>
     </div>
     <div class="award" id="award"></div>
     <div class="hint">Mellemrum: vis svar · T: nedtælling · Esc: tilbage til tavlen</div>
@@ -377,7 +384,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '18';
+const APP_VERSION = '19';
 const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="m16 9 6 6"/><path d="m22 9-6 6"/></svg>';
 const STORE_KEY = 'quiztavle.v1';
@@ -1231,7 +1238,7 @@ function setTimerBtn(running) {
 function resetTimerUI() {
   const s = state.config.rules.timer || 30;
   $('#tFill').style.transition = 'none'; $('#tFill').style.transform = 'scaleX(1)';
-  $('#tNum').textContent = s; setTimerBtn(false);
+  $('#tNum').textContent = s + ' sek.'; setTimerBtn(false);
 }
 function startTimer() {
   if (!cur || cur.ddStage) return;
@@ -1246,7 +1253,7 @@ function startTimer() {
   setTimerBtn(true);
   cur.timer = setInterval(() => {
     const left = Math.max(0, Math.ceil(secs - (performance.now() - start) / 1000));
-    $('#tNum').textContent = left;
+    $('#tNum').textContent = left + ' sek.';
     if (left <= 0) { stopTimer(true); }
   }, 100);
 }
@@ -1257,7 +1264,7 @@ function stopTimer(timeUp) {
   const fill = $('#tFill'); const cs = getComputedStyle(fill).transform;
   fill.style.transition = 'none'; fill.style.transform = cs === 'none' ? 'scaleX(1)' : cs;
   setTimerBtn(false);
-  if (timeUp) { $('#tNum').textContent = '0'; Sound.play('timeup'); }
+  if (timeUp) { $('#tNum').textContent = '0 sek.'; Sound.play('timeup'); }
 }
 
 /* =====================================================================
