@@ -78,8 +78,9 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .note.on{animation:beat 1s ease-in-out infinite}
 @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 .splash img{max-height:22vh;max-width:60vw}
-.bigbtn{background:var(--value);color:#111;border:none;border-radius:999px;padding:14px 34px;font-size:1.2rem;font-weight:700;box-shadow:0 6px 0 rgba(0,0,0,.35)}
-.bigbtn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.bigbtn{background:var(--value);color:#111;border:none;border-radius:999px;padding:14px 34px;font-size:1.2rem;font-weight:700;transition:transform .12s,filter .12s}
+.bigbtn:hover{filter:brightness(1.06)}
+.bigbtn:active{transform:scale(.97)}
 
 /* ---------- Question ---------- */
 .overlay{position:fixed;inset:0;z-index:30;display:flex;padding:clamp(8px,2vw,24px);background:rgba(0,0,0,.6)}
@@ -119,8 +120,25 @@ main{flex:1 1 auto;min-height:0;padding:0 16px 10px}
 .atext small{display:block;font-size:.45em;opacity:.8;color:var(--q-text);margin-bottom:.3em}
 .dd{font-family:var(--heading-font);text-transform:var(--case);font-size:clamp(2.4rem,9vw,8rem);color:var(--value);animation:spin .9s cubic-bezier(.2,.9,.3,1.1) both;line-height:1}
 @keyframes spin{from{transform:rotate(-540deg) scale(.1)}to{transform:none}}
-.wager{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;font-size:1.1rem}
-.wager input,.wager select{font:inherit;padding:8px 10px;border-radius:8px;border:none;max-width:200px}
+.ddpick{display:flex;flex-direction:column;align-items:center;gap:clamp(10px,2vh,18px);width:min(760px,100%);animation:fadeup .5s .5s both}
+.ddstep{font-size:.8rem;letter-spacing:.22em;text-transform:uppercase;opacity:.7}
+.ddteams{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.ddteam{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:999px;color:inherit;font-weight:600;font-size:clamp(.95rem,1.6vw,1.15rem);
+  border:2px solid rgba(128,128,128,.35);border:2px solid color-mix(in srgb, var(--q-text) 22%, transparent);background:none;transition:background .15s,border-color .15s}
+.ddteam::before{content:'';width:.65em;height:.65em;border-radius:50%;background:var(--tcol);box-shadow:0 0 0 1.5px rgba(128,128,128,.6)}
+.ddteam:hover{border-color:color-mix(in srgb, var(--q-text) 45%, transparent)}
+.ddteam.on{border-color:var(--value);background:color-mix(in srgb, var(--value) 20%, transparent)}
+.ddteam small{opacity:.65;font-weight:400}
+.ddamount{display:flex;align-items:center;gap:clamp(10px,2vw,22px)}
+.ddamount .step{width:46px;height:46px;border-radius:50%;border:none;background:none;color:inherit;opacity:.7;display:flex;align-items:center;justify-content:center;padding:0}
+.ddamount .step:hover{opacity:1}
+.ddamount input{width:6ch;text-align:center;font-family:var(--heading-font);font-size:clamp(2.4rem,6vw,4.4rem);line-height:1;color:var(--value);background:none;border:none;border-bottom:2px solid color-mix(in srgb, var(--q-text) 25%, transparent);padding:0 0 4px;-moz-appearance:textfield;appearance:textfield}
+.ddamount input::-webkit-inner-spin-button,.ddamount input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.ddamount input:focus{outline:none;border-bottom-color:var(--value)}
+.ddquick{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.ddquick button{border:none;background:none;color:inherit;opacity:.7;font-size:.9rem;padding:5px 12px;border-radius:999px}
+.ddquick button:hover{opacity:1;background:color-mix(in srgb, var(--q-text) 10%, transparent)}
+.ddquick button.on{opacity:1;color:var(--value)}
 .timer{display:flex;align-items:center;gap:12px;margin:6px 0 10px}
 .tbar{flex:1;height:12px;background:rgba(0,0,0,.35);border-radius:99px;overflow:hidden}
 .tbar i{display:block;height:100%;width:100%;background:var(--value);transform-origin:left;border-radius:99px}
@@ -359,7 +377,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '17';
+const APP_VERSION = '18';
 const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="m16 9 6 6"/><path d="m22 9-6 6"/></svg>';
 const STORE_KEY = 'quiztavle.v1';
@@ -980,18 +998,43 @@ function openQuestion(id, tileEl) {
 }
 function renderDD(x) {
   const body = $('#qBody'); body.replaceChildren();
-  const r = state.config.rules;
-  const teams = state.config.teams;
-  const sel = el('select', {id:'ddTeam'}, teams.map(t => el('option', {value:t.id}, t.name)));
-  const inp = el('input', {type:'number', id:'ddWager', value:x.value, min:0, step:50});
+  const r = state.config.rules, teams = state.config.teams;
+  const SV = d => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${d}</svg>`;
+  let teamId = teams[0]?.id, wager = Number(x.value) || 0;
+  const allVals = state.config.categories.flatMap(c => c.questions.map(q => Number(q.value) || 0)).filter(v => v > 0);
+  const step = Math.min(...allVals.length ? allVals : [100]) >= 100 ? 100 : 50;
+  const maxVal = Math.max(0, ...allVals);
+  // Hold
+  const teamBtns = teams.map(t => el('button', {class:'ddteam', style:`--tcol:${t.color}`, onclick: () => { teamId = t.id; sync(); }}, t.name, el('small', {}, fmt(score(t.id)))));
+  // Beløb
+  const inp = el('input', {type:'number', inputMode:'numeric', min:0, step, value:wager, 'aria-label':'Indsats', oninput: e => { wager = Math.max(0, Number(e.target.value) || 0); sync(false); }});
+  const bump = d => { wager = Math.max(0, wager + d); sync(); };
+  const minus = el('button', {class:'step', title:'Mindre', 'aria-label':'Mindre indsats', innerHTML: SV('<path d="M5 12h14"/>'), onclick: () => bump(-step)});
+  const plus  = el('button', {class:'step', title:'Mere', 'aria-label':'Større indsats', innerHTML: SV('<path d="M5 12h14"/><path d="M12 5v14"/>'), onclick: () => bump(step)});
+  const quick = () => {
+    const own = score(teamId);
+    const list = [['Feltets værdi', Number(x.value) || 0], ['Dobbelt', (Number(x.value) || 0) * 2]];
+    if (maxVal) list.push(['Højeste felt', maxVal]);
+    if (own > 0) list.push(['Alt ind', own]);
+    return list;
+  };
+  const quickBox = el('div', {class:'ddquick'});
+  function sync(updateInput = true) {
+    teamBtns.forEach((b, i) => b.classList.toggle('on', teams[i].id === teamId));
+    if (updateInput) inp.value = wager;
+    quickBox.replaceChildren(...quick().map(([label, v]) => el('button', {class: v === wager ? 'on' : '', onclick: () => { wager = v; sync(); }}, `${label} · ${fmt(v)}`)));
+  }
   body.append(el('div', {class:'dd'}, r.ddLabel || 'Dobbelt op!'),
-    el('div', {class:'wager'}, el('label', {}, 'Hold: ', sel), el('label', {}, 'Indsats: ', inp)),
-    el('button', {class:'bigbtn', onclick: () => {
-      cur.ddStage = false;
-      state.progress.results[x.id] = { ...(state.progress.results[x.id]||{}), wager: Number(inp.value)||0, ddTeam: sel.value, deltas:{} };
-      $('#qVal').textContent = fmt(Number(inp.value)||0) + ' · ' + (teams.find(t=>t.id===sel.value)?.name || '');
-      save(); renderQ(x);
-    }}, 'Vis spørgsmålet'));
+    el('div', {class:'ddpick'},
+      el('div', {class:'ddstep'}, 'Hvilket hold?'), el('div', {class:'ddteams'}, teamBtns),
+      el('div', {class:'ddstep'}, 'Indsats'), el('div', {class:'ddamount'}, minus, inp, plus), quickBox,
+      el('button', {class:'bigbtn', onclick: () => {
+        cur.ddStage = false;
+        state.progress.results[x.id] = { ...(state.progress.results[x.id]||{}), wager, ddTeam: teamId, deltas:{} };
+        $('#qVal').textContent = fmt(wager) + ' · ' + (teams.find(t => t.id === teamId)?.name || '');
+        save(); renderQ(x);
+      }}, 'Vis spørgsmålet')));
+  sync();
   $('#qControls').hidden = true; $('#timerWrap').hidden = true; $('#award').replaceChildren();
 }
 const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>';
