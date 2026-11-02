@@ -11,15 +11,28 @@ som `.json` under **Gem & del**.
 ## Kør lokalt
 
 ```bash
-npm install
 npm start      # http://localhost:3000
 ```
 
+Ingen afhængigheder — kun Node 18+. `server.js` viser quizzen fra `public/`
+og gemmer delte quizzer.
+
 ## Railway
 
-Railway bygger automatisk fra dette repo (Node: `npm install` + `npm start`).
-Serveren lytter på den port, Railway giver i `PORT`. Lav et offentligt link
-under **Settings → Networking → Generate Domain**.
+Railway bygger automatisk fra dette repo (`npm start`). Lav et offentligt link
+under **Settings → Networking → Public Networking → Generate Domain**.
+
+### Lagerplads til delte quizzer (Volume)
+
+Delingslinks gemmes på serveren. For at de ikke forsvinder ved hver ny
+udrulning, skal servicen have et **Volume**:
+
+1. Åbn projektet på railway.app.
+2. Højreklik på quiz-servicen (eller tryk ⌘K og skriv *volume*) → **Attach Volume**.
+3. **Mount path:** `/data` → **Add** / **Deploy**.
+
+Serveren finder selv Volumet (`RAILWAY_VOLUME_MOUNT_PATH`). Uden Volume
+virker delingslinks kun indtil næste udrulning.
 
 ## Multiple choice og spørgsmål med lyd
 
@@ -31,11 +44,8 @@ quizzen eksporteres som `.json`.
 ## Del en quiz
 
 Ændringer i editoren gemmes i den browser, du bruger. For at dele en quiz:
-**✎ Tilpas → Gem & del → 🔗 Lav delingslink**. Linket indeholder hele quizzen
-(spørgsmål, udseende, hold og regler) og kopieres automatisk. Den, der åbner
-linket, får quizzen indlæst i sin browser.
+**✎ Tilpas → Gem & del → 🔗 Lav delingslink**. Quizzen (inkl. billeder og
+sange) uploades til serveren, og du får et kort link (`/q/<id>`), som kopieres
+automatisk. Den, der åbner linket, får quizzen indlæst i sin browser.
 
-Uploadede billeder, sange og egne lydfiler kommer ikke med i linket (brug
-billeder som link `https://…`, hvis de skal med). Skal sangene med, så brug
-**Eksportér quiz med lyd (.json)** og send filen — modtageren importerer den
-under **Gem & del**.
+Du kan også eksportere quizzen som `.json` (inkl. lyd) og importere den igen.

@@ -385,7 +385,7 @@ details.catcard>summary .grow{flex:1;min-width:0;overflow:hidden;text-overflow:e
    (localStorage) og kan eksporteres/importeres som .json.
    ===================================================================== */
 
-const APP_VERSION = '22';
+const APP_VERSION = '23';
 const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="m16 9 6 6"/><path d="m22 9-6 6"/></svg>';
 const STORE_KEY = 'quiztavle.v1';
@@ -1313,35 +1313,96 @@ async function unpackQuiz(str) {
   }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
-async function makeShareLink() {
-  const cfg = JSON.parse(JSON.stringify(state.config)), warnings = [];
+/* Saml quizzens lydfiler (spørgsmålenes sange + egne lydeffekter) til eksport/deling */
+async function collectAudio() {
+  const audio = {};
+  try {
+    const all = await AudioDB.all();
+    const qids = new Set(state.config.categories.flatMap(c => c.questions.map(x => x.id)));
+    for (const [k, v] of Object.entries(all)) {
+      if (!v) continue;
+      if (k.startsWith('q:') ? !qids.has(k.slice(2)) : !SOUND_SLOTS[k]) continue;
+      const buf = v.data || (v.blob && await v.blob.arrayBuffer()); if (!buf) continue;
+      audio[k] = { name: v.name, type: v.type || 'audio/mpeg', b64: b64std(new Uint8Array(buf)) };
+    }
+  } catch (e) {}
+  return audio;
+}
+/* Indlæs en quiz (fra fil eller delt link) inkl. lydfiler */
+async function applyQuizData(d) {
+  const cfg = d.config || d;
+  if (!cfg || !cfg.categories) throw new Error('Det er ikke en quiz');
+  state = normalize({ config: cfg, progress: emptyProgress() }); save();
+  let n = 0;
+  for (const [k, v] of Object.entries(d.audio || {})) {
+    try {
+      const bytes = unb64std(v.b64), type = v.type || 'audio/mpeg';
+      await AudioDB.put(k, { data: bytes.buffer, type, name: v.name }).catch(() => {});
+      const url = URL.createObjectURL(new Blob([bytes], { type }));
+      if (k.startsWith('q:')) QAudio[k.slice(2)] = { url, name: v.name }; else Sound.custom[k] = { url, name: v.name };
+      n++;
+    } catch (e) {}
+  }
+  renderAll(); updateTitleBtn && updateTitleBtn();
+  return n;
+}
+/* Delingslink: uploades til serveren (med sange og billeder) → kort link /q/<id>.
+   Virker serveren ikke (fx når siden er åbnet som fil), laves et link med quizzen pakket ind i selve linket. */
+async function makeShareLink(onProgress) {
+  const warnings = [];
+  try {
+    if (!/^https?:$/.test(location.protocol)) throw new Error('ingen server');
+    onProgress && onProgress('Samler quiz og lydfiler…');
+    const audio = await collectAudio();
+    const body = JSON.stringify({ config: state.config, audio });
+    onProgress && onProgress(`Uploader (${(body.length / 1048576).toFixed(1).replace('.', ',')} MB)…`);
+    const r = await fetch('/api/quiz', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.id) throw new Error(j.error || 'upload fejlede');
+    if (!j.persistent) warnings.push('Railway har endnu ikke en lagerplads (Volume), så linket virker kun indtil næste opdatering af siden.');
+    const n = Object.keys(audio).length;
+    return { link: location.origin + '/q/' + j.id, warnings, server: true, info: n ? `Sange og lyde med: ${n}.` : '' };
+  } catch (e) {
+    if (e.message !== 'ingen server') warnings.push(`Kunne ikke uploade (${e.message}), så linket indeholder kun quizzen uden lydfiler og uploadede billeder.`);
+  }
+  const cfg = JSON.parse(JSON.stringify(state.config));
   const isData = v => typeof v === 'string' && v.startsWith('data:');
-  if (isData(cfg.theme.bgImage)) { cfg.theme.bgImage = ''; warnings.push('Det uploadede baggrundsbillede kommer ikke med.'); }
-  if (isData(cfg.logo)) { cfg.logo = ''; warnings.push('Det uploadede logo kommer ikke med.'); }
-  let imgs = 0; cfg.categories.forEach(c => c.questions.forEach(x => { if (isData(x.img)) { x.img = ''; imgs++; } }));
-  if (imgs) warnings.push(`${imgs} uploadede billede(r) i spørgsmål kommer ikke med.`);
-  if (Object.keys(Sound.custom).length) warnings.push('Egne lydfiler kommer ikke med — modtageren hører de indbyggede lyde.');
-  const nAud = cfg.categories.reduce((n, c) => n + c.questions.filter(x => x.audio).length, 0);
-  if (nAud) warnings.push(`${nAud} spørgsmål har lyd — sangene kommer ikke med i linket. Send i stedet quizzen som fil (Eksportér med lyd).`);
+  if (isData(cfg.theme.bgImage)) cfg.theme.bgImage = '';
+  if (isData(cfg.logo)) cfg.logo = '';
+  cfg.categories.forEach(c => c.questions.forEach(x => { if (isData(x.img)) x.img = ''; }));
   const base = location.href.split('#')[0];
-  return { link: base + '#q=' + await packQuiz(cfg), warnings };
+  return { link: base + '#q=' + await packQuiz(cfg), warnings, server: false, info: '' };
 }
 /* Åbnet via et delt link? Så indlæses quizzen og linket ryddes op */
+function confirmReplace(title) {
+  let hadOwn = false; try { hadOwn = !!localStorage.getItem(STORE_KEY); } catch (e) {}
+  return !hadOwn || confirm(`Åbn den delte quiz "${title || 'Quiz'}"?\n\nDen quiz, der ligger i denne browser nu, bliver erstattet. Vil du beholde den, så tryk Annullér og eksportér den først under Tilpas → Gem & del.`);
+}
 async function loadSharedFromHash() {
-  const m = /^#q=(.+)$/.exec(location.hash); if (!m) return;
+  const mPath = /^\/q\/([A-Za-z0-9]{6,16})\/?$/.exec(location.pathname);
+  const mHash = /^#q=(.+)$/.exec(location.hash);
+  if (!mPath && !mHash) return;
+  const clean = () => history.replaceState(null, '', '/' === location.pathname || !mPath ? location.pathname + location.search : '/');
   try {
-    const cfg = await unpackQuiz(m[1]);
-    if (!cfg || !cfg.categories) throw new Error('Linket indeholder ikke en quiz');
-    const same = JSON.stringify(cfg) === JSON.stringify(state.config);
-    let hadOwn = false; try { hadOwn = !!localStorage.getItem(STORE_KEY); } catch (e) {}
-    if (!same && hadOwn && !confirm(`Åbn den delte quiz "${cfg.title || 'Quiz'}"?\n\nDen quiz, der ligger i denne browser nu, bliver erstattet. Vil du beholde den, så tryk Annullér og eksportér den først under Tilpas → Gem & del.`)) {
-      history.replaceState(null, '', location.pathname + location.search); return;
+    if (mPath) {
+      toast('Henter quizzen…');
+      const r = await fetch('/api/quiz/' + mPath[1]);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Quizzen findes ikke');
+      const same = JSON.stringify(d.config) === JSON.stringify(state.config);
+      if (!same && !confirmReplace(d.config.title)) { clean(); return; }
+      const n = await applyQuizData(d);
+      toast(`Quizzen "${d.config.title || 'Quiz'}" er indlæst` + (n ? ` med ${n} lydfil${n > 1 ? 'er' : ''}` : ''));
+    } else {
+      const cfg = await unpackQuiz(mHash[1]);
+      if (!cfg || !cfg.categories) throw new Error('Linket indeholder ikke en quiz');
+      const same = JSON.stringify(cfg) === JSON.stringify(state.config);
+      if (!same && !confirmReplace(cfg.title)) { clean(); return; }
+      await applyQuizData({ config: cfg });
+      if (!same) toast(`Quizzen "${cfg.title || 'Quiz'}" er indlæst`);
     }
-    state = normalize({ config: cfg, progress: emptyProgress() }); save();
-    renderAll(); updateTitleBtn && updateTitleBtn();
-    if (!same) toast(`Quizzen "${cfg.title || 'Quiz'}" er indlæst`);
   } catch (e) { toast('Linket kunne ikke åbnes: ' + e.message); }
-  history.replaceState(null, '', location.pathname + location.search);
+  clean();
 }
 
 /* =====================================================================
@@ -1609,34 +1670,24 @@ function edSound(p) {
 function edFile(p) {
   p.append(el('p', {class:'note'}, 'Alt gemmes automatisk i denne browser. Eksportér quizzen som fil for at tage backup, dele den eller have flere quizzer klar (fx én til julefrokosten og én til fødselsdagen).'));
   p.append(el('h3', {}, 'Del quizzen med et link'),
-    el('p', {class:'note'}, 'Linket indeholder hele quizzen: spørgsmål, udseende, hold og regler. Den, der åbner linket, får præcis din quiz. Ændrer du quizzen bagefter, skal du lave et nyt link.'));
+    el('p', {class:'note'}, 'Quizzen gemmes på din Railway-side med spørgsmål, udseende, hold, regler, billeder og sange, og du får et kort link. Den, der åbner linket, får præcis din quiz. Ændrer du quizzen bagefter, så lav et nyt link.'));
   const out = el('input', {type:'text', readOnly:true, placeholder:'Klik på "Lav delingslink"', onclick: e => e.target.select()});
   const info = el('p', {class:'note'});
   p.append(el('div', {class:'row'},
     el('button', {class:'btn acc', onclick: async () => {
       try {
-        const { link, warnings } = await makeShareLink();
+        const { link, warnings, server, info: extra } = await makeShareLink(msg => { info.textContent = msg; });
         out.value = link; out.select();
-        info.textContent = `Linket er ${link.length.toLocaleString('da-DK')} tegn langt.` + (warnings.length ? ' Bemærk: ' + warnings.join(' ') : '');
+        info.textContent = (server ? 'Kort link klar — quizzen er gemt på din Railway-side. ' + extra : `Linket er ${link.length.toLocaleString('da-DK')} tegn langt.`) + (warnings.length ? ' Bemærk: ' + warnings.join(' ') : '');
         try { await navigator.clipboard.writeText(link); toast('Link kopieret — sæt det ind i en besked eller mail'); } catch (e) { toast('Linket er klar — kopiér det fra feltet'); }
       } catch (e) { toast('Kunne ikke lave linket: ' + e.message); }
     }}, '🔗 Lav delingslink'),
     el('button', {class:'btn', onclick: async () => { if (!out.value) return; try { await navigator.clipboard.writeText(out.value); toast('Kopieret'); } catch (e) { out.select(); document.execCommand && document.execCommand('copy'); toast('Kopieret'); } }}, 'Kopiér')),
     field('', out), info,
-    el('p', {class:'note'}, 'Egne lydfiler og billeder, du har uploadet fra din computer, kommer ikke med i linket (de er for store). Billeder indsat som link (https://…) kommer med.'));
+    el('p', {class:'note'}, 'Har du mange sange, kan det tage lidt tid at uploade.'));
   p.append(el('h3', {}, 'Eksportér & importér'), el('div', {class:'row'},
     el('button', {class:'btn acc', onclick: async () => {
-      const audio = {};
-      try {
-        const all = await AudioDB.all();
-        const qids = new Set(state.config.categories.flatMap(c => c.questions.map(x => x.id)));
-        for (const [k, v] of Object.entries(all)) {
-          if (!v) continue;
-          if (k.startsWith('q:') ? !qids.has(k.slice(2)) : !SOUND_SLOTS[k]) continue;
-          const buf = v.data || (v.blob && await v.blob.arrayBuffer()); if (!buf) continue;
-          audio[k] = { name: v.name, type: v.type || 'audio/mpeg', b64: b64std(new Uint8Array(buf)) };
-        }
-      } catch (e) {}
+      const audio = await collectAudio();
       const data = JSON.stringify({ format:'quiztavle', version:2, config: state.config, audio });
       const a = el('a', { href: URL.createObjectURL(new Blob([data], {type:'application/json'})),
         download: (state.config.title || 'quiz').replace(/[^\wæøåÆØÅ\- ]+/g,'').trim().replace(/\s+/g,'-').toLowerCase() + '.json' });
@@ -1648,20 +1699,7 @@ function edFile(p) {
         try {
           const d = JSON.parse(r.result); const cfg = d.config || d;
           if (!cfg.categories) throw new Error('mangler kategorier');
-          state = normalize({ config: cfg, progress: emptyProgress() });
-          (async () => {
-            let n = 0;
-            for (const [k, v] of Object.entries(d.audio || {})) {
-              try {
-                const bytes = unb64std(v.b64), type = v.type || 'audio/mpeg';
-                await AudioDB.put(k, { data: bytes.buffer, type, name: v.name }).catch(() => {});
-                const url = URL.createObjectURL(new Blob([bytes], { type }));
-                if (k.startsWith('q:')) QAudio[k.slice(2)] = { url, name: v.name }; else Sound.custom[k] = { url, name: v.name };
-                n++;
-              } catch (e) {}
-            }
-            changed(true); toast('Quiz importeret' + (n ? ` med ${n} lydfil${n > 1 ? 'er' : ''}` : ''));
-          })();
+          applyQuizData(d).then(n => { renderEditor(); toast('Quiz importeret' + (n ? ` med ${n} lydfil${n > 1 ? 'er' : ''}` : '')); });
         } catch (err) { toast('Filen kunne ikke læses som en quiz'); }
       }; r.readAsText(f);
     }}))),
