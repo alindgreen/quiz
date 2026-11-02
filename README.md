@@ -21,6 +21,13 @@ Railway bygger automatisk fra dette repo (Node: `npm install` + `npm start`).
 Serveren lytter på den port, Railway giver i `PORT`. Lav et offentligt link
 under **Settings → Networking → Generate Domain**.
 
+## Multiple choice og spørgsmål med lyd
+
+I editoren kan hvert spørgsmål sættes til **Multiple choice** (2–4
+svarmuligheder, markér den rigtige) og/eller få en **lyd/sang** tilknyttet
+(med valgfrit starttidspunkt). Sange gemmes i browseren og kommer med, når
+quizzen eksporteres som `.json`.
+
 ## Del en quiz
 
 Ændringer i editoren gemmes i den browser, du bruger. For at dele en quiz:
@@ -28,6 +35,7 @@ under **Settings → Networking → Generate Domain**.
 (spørgsmål, udseende, hold og regler) og kopieres automatisk. Den, der åbner
 linket, får quizzen indlæst i sin browser.
 
-Uploadede billeder og egne lydfiler kommer ikke med i linket (brug billeder
-som link `https://…`, hvis de skal med). Du kan også eksportere/importere
-quizzen som `.json`-fil.
+Uploadede billeder, sange og egne lydfiler kommer ikke med i linket (brug
+billeder som link `https://…`, hvis de skal med). Skal sangene med, så brug
+**Eksportér quiz med lyd (.json)** og send filen — modtageren importerer den
+under **Gem & del**.
